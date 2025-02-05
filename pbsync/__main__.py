@@ -934,7 +934,7 @@ def main(argv):
                 continue
             el = root.findall(tag)
             if el:
-                el = [e.text if e.text else "" for e in root.findall(tag)]
+                el = [e.text.strip() if e.text else "" for e in root.findall(tag)]
                 size = len(el)
                 optional = size > 0
                 if size == 1 and is_single:
