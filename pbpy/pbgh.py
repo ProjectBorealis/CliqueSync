@@ -1,17 +1,11 @@
-import os.path
 import os
+import os.path
 import shutil
-
-from zipfile import ZipFile
-from urllib.parse import urlparse
 from functools import lru_cache
+from urllib.parse import urlparse
+from zipfile import ZipFile
 
-from pbpy import pblog
-from pbpy import pbtools
-from pbpy import pbconfig
-from pbpy import pbgit
-from pbpy import pbunreal
-from pbpy import pbinfo
+from pbpy import pbconfig, pbgit, pbinfo, pblog, pbtools, pbunreal
 
 gh_executable_path = "\\git\\gh.exe"
 chglog_executable_path = "\\git\\git-chglog.exe"
@@ -72,7 +66,10 @@ def download_release_file(version, pattern=None, directory=None, repo=None):
         pblog.error(f"CLI executable not found at {cli_exec_path}")
         return 1
 
-    args = [cli_exec_path, "release", "download", version]
+    args = [cli_exec_path, "release", "download"]
+
+    if version:
+        args.append(version)
 
     if directory:
         args.extend(["-D", directory])

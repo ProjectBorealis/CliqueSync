@@ -494,6 +494,8 @@ def maintain_repo():
     )
     if not does_maintainence:
         commands.insert(0, f"scalar register .")
+    else:
+        commands.insert(0, f"scalar reconfigure .")
 
     # fill in the git repo optionally
     is_shallow = get_one_line_output(

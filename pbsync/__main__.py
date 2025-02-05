@@ -56,13 +56,16 @@ def sync_handler(sync_val: str, repository_val=None):
         detected_git_version = pbgit.get_git_version()
         supported_git_version = pbconfig.get("supported_git_version")
         needs_git_update = False
-        if detected_git_version == supported_git_version:
+        if (
+            detected_git_version == supported_git_version
+            or not supported_git_version
+            and detected_git_version
+        ):
             pblog.info(f"Current Git version: {detected_git_version}")
         else:
             pblog.warning("Git is not updated to the supported version in your system")
-            pblog.warning(
-                f"Supported Git Version: {pbconfig.get('supported_git_version')}"
-            )
+            if supported_git_version:
+                pblog.warning(f"Supported Git Version: {supported_git_version}")
             pblog.warning(f"Current Git Version: {detected_git_version}")
             needs_git_update = True
             repo = "microsoft/git"
@@ -192,7 +195,11 @@ def sync_handler(sync_val: str, repository_val=None):
 
         detected_lfs_version = pbgit.get_lfs_version()
         supported_lfs_version = pbconfig.get("supported_lfs_version")
-        if detected_lfs_version == supported_lfs_version:
+        if (
+            detected_lfs_version == supported_lfs_version
+            or not supported_git_version
+            and detected_lfs_version
+        ):
             pblog.info(f"Current Git LFS version: {detected_lfs_version}")
         else:
             pblog.warning(
@@ -280,9 +287,12 @@ def sync_handler(sync_val: str, repository_val=None):
                     index += 1
 
         detected_gcm_version = pbgit.get_gcm_version()
-        supported_gcm_version_raw = pbconfig.get("supported_gcm_version")
-        supported_gcm_version = f"{supported_gcm_version_raw}"
-        if detected_gcm_version == supported_gcm_version:
+        supported_gcm_version = pbconfig.get("supported_gcm_version")
+        if (
+            detected_gcm_version == supported_gcm_version
+            or not supported_gcm_version
+            and detected_gcm_version
+        ):
             pblog.info(
                 f"Current Git Credential Manager version: {detected_gcm_version}"
             )
@@ -290,9 +300,10 @@ def sync_handler(sync_val: str, repository_val=None):
             pblog.warning(
                 "Git Credential Manager is not updated to the supported version in your system"
             )
-            pblog.warning(
-                f"Supported Git Credential Manager Version: {supported_gcm_version}"
-            )
+            if supported_gcm_version:
+                pblog.warning(
+                    f"Supported Git Credential Manager Version: {supported_gcm_version}"
+                )
             pblog.warning(
                 f"Current Git Credential Manager Version: {detected_gcm_version}"
             )
@@ -330,12 +341,14 @@ def sync_handler(sync_val: str, repository_val=None):
                         'Please uninstall Git Credential Manager if you have it in "Add or remove programs" and then install Git Credential Manager again.'
                     )
             else:
-                if os.name == "nt":
+                repo = "git-ecosystem/git-credential-manager"
+                if not supported_gcm_version:
+                    webbrowser.open(f"https://github.com/{repo}/releases/latest")
+                elif os.name == "nt":
                     pblog.info("Auto-updating Git Credential Manager...")
                     version = f"v{supported_gcm_version}"
                     directory = "Saved/PBSyncDownloads"
-                    download = f"gcm-win-x86-{supported_gcm_version_raw}.exe"
-                    repo = "git-ecosystem/git-credential-manager"
+                    download = f"gcm-win-x86-{supported_gcm_version}.exe"
                     if (
                         pbgh.download_release_file(
                             version,
@@ -369,7 +382,10 @@ def sync_handler(sync_val: str, repository_val=None):
 
             if not needs_git_update:
                 # this handles a case where GCM is installed by Git itself, and blocks GCM from installing the new one
-                needs_git_update = pbgit.get_gcm_version() != supported_gcm_version
+                needs_git_update = (
+                    pbgit.get_gcm_version() != supported_gcm_version
+                    and supported_gcm_version
+                )
                 if needs_git_update:
                     # remove the old credential helper (it may get stuck, and GCM won't be able to install)
                     pbtools.run_with_combined_output(
@@ -860,9 +876,10 @@ def main(argv):
     # Parser function object for PBSync config file
     def pbsync_config_parser_func(root):
         config_args_map = {
-            "supported_git_version": ("git/version", None, None, True),
-            "supported_lfs_version": ("git/lfsversion", None, None, True),
-            "supported_gcm_version": ("git/gcmversion", None, None, True),
+            # config key : xml location | forced override | default | is single
+            "supported_git_version": ("git/version", None, "", True),
+            "supported_lfs_version": ("git/lfsversion", None, "", True),
+            "supported_gcm_version": ("git/gcmversion", None, "", True),
             "expected_branch_names": (
                 "git/expectedbranch",
                 None if args.debugbranch is None else [str(args.debugbranch)],
@@ -896,7 +913,7 @@ def main(argv):
             "steamdrm_useonprem": ("steamcmd/drm/useonprem", None, False, True),
             "resharper_version": ("resharper/version", None, "", True),
             "engine_prefix": ("versionator/engineprefix", None, "", True),
-            "engine_type": ("versionator/enginetype", None, None, True),
+            "engine_type": ("versionator/enginetype", None, "ue5", True),
             "uses_gcs": ("versionator/uses_gcs", None, False, True),
             "uses_longtail": ("versionator/uses_longtail", None, False, True),
             "git_instructions": (
