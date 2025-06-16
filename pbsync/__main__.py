@@ -42,6 +42,16 @@ def config_handler(config_var, config_parser_func):
         )
 
 
+def are_equivalent_git_versions(version_a: str, version_b: str) -> bool:
+    if ".vfs" in version_a:
+        version_a = version_a.split(".vfs")[0]
+
+    if ".vfs" in version_b:
+        version_b = version_b.split(".vfs")[0]
+    
+    return version_a == version_b
+
+
 def sync_handler(sync_val: str, repository_val=None):
 
     sync_val = sync_val.lower()
@@ -56,7 +66,7 @@ def sync_handler(sync_val: str, repository_val=None):
         detected_git_version = pbgit.get_git_version()
         supported_git_version = pbconfig.get("supported_git_version")
         needs_git_update = False
-        if detected_git_version == supported_git_version:
+        if are_equivalent_git_versions(detected_git_version, supported_git_version):
             pblog.info(f"Current Git version: {detected_git_version}")
         else:
             pblog.warning("Git is not updated to the supported version in your system")
