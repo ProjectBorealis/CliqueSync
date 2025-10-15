@@ -2,7 +2,10 @@ import argparse
 import multiprocessing
 import os
 import os.path
+import platform
 import sys
+import shutil
+import subprocess
 import threading
 import time
 import webbrowser
@@ -15,6 +18,7 @@ from pbpy import (
     pbdispatch,
     pbgh,
     pbgit,
+    pbhttp,
     pblog,
     pbpy_version,
     pbsteamcmd,
@@ -31,6 +35,52 @@ except ImportError:
 
 default_config_name = "PBSync.xml"
 
+def check_gh_cli():
+    try:
+        result = subprocess.run(["gh", "--version"], capture_output=True, text=True, check=True)
+        pblog.info(result.stdout.strip())
+        return True
+    except FileNotFoundError:
+        return False
+
+def install_gh_cli():
+    pblog.info("GitHub CLI not found. Installing...")
+    gh_ver="2.63.0"
+    # Download GitHub CLI
+    match sys.platform:
+        case "win32":
+            url = f"https://github.com/cli/cli/releases/download/v{gh_ver}/gh_{gh_ver}_windows_amd64.msi"
+            downloaded_file = 'gh.msi'
+        case "darwin":
+            url = f"https://github.com/cli/cli/releases/download/v{gh_ver}/gh_{gh_ver}_macOS_universal.pkg"
+            downloaded_file = 'gh.pkg'
+        case _:
+            pblog.error("Your operation system is not supported")
+            return None
+
+    pbhttp.download(url)
+
+    # Install GitHub CLI
+    try:
+        match sys.platform:
+            case "win32": subprocess.run(['msiexec', '/i', downloaded_file, '/passive'], check=True)
+            case "darwin": subprocess.run(['sudo', 'installer', '-pkg', downloaded_file, '-target', '/'], check=True)
+    except subprocess.CalledProcessError as e:
+        pblog.error(f"Command failed with return code {e.returncode}")
+    
+    pblog.info("GitHub CLI installed.")
+    result = subprocess.run(['gh', '--version'], capture_output=True, text=True, check=True)
+    pblog.info(result.stdout.strip())
+    # Delete installation file
+    os.remove(downloaded_file)
+
+    try:
+        subprocess.run(['gh', 'auth', 'login'], check=True)
+    except:
+        pass
+
+if not check_gh_cli():
+    install_gh_cli()
 
 def config_handler(config_var, config_parser_func):
     if not pbconfig.generate_config(config_var, config_parser_func):
@@ -43,7 +93,6 @@ def config_handler(config_var, config_parser_func):
 
 
 def sync_handler(sync_val: str, repository_val=None):
-
     sync_val = sync_val.lower()
 
     if sync_val == "all" or sync_val == "force" or sync_val == "partial":
@@ -55,76 +104,30 @@ def sync_handler(sync_val: str, repository_val=None):
 
         detected_git_version = pbgit.get_git_version()
         supported_git_version = pbconfig.get("supported_git_version")
-        needs_git_update = False
         if detected_git_version == supported_git_version:
             pblog.info(f"Current Git version: {detected_git_version}")
         else:
-            pblog.warning("Git is not updated to the supported version in your system")
-            pblog.warning(
-                f"Supported Git Version: {pbconfig.get('supported_git_version')}"
-            )
-            pblog.warning(f"Current Git Version: {detected_git_version}")
-            needs_git_update = True
-            repo = "microsoft/git"
-            version = f"v{supported_git_version}"
-            if (
-                "vfs" in detected_git_version
-                and sys.platform == "win32"
-                or sys.platform == "darwin"
-            ):
-                pblog.info("Auto-updating Git...")
-                if sys.platform == "win32":
-                    directory = "Saved/PBSyncDownloads"
-                    download = f"Git-{supported_git_version}-64-bit.exe"
-                    if (
-                        pbgh.download_release_file(
-                            version,
-                            download,
-                            directory=directory,
-                            repo=f"https://github.com/{repo}",
-                        )
-                        != 0
-                    ):
-                        pblog.error(
-                            "Git auto-update failed, please download and install manually."
-                        )
-                        webbrowser.open(
-                            f"https://github.com/{repo}/releases/download/{version}/{download}"
-                        )
-                    else:
-                        download_path = f"Saved\\PBSyncDownloads\\{download}"
-                        proc = pbtools.run([download_path])
-                        if proc.returncode:
-                            pblog.error("Git auto-update failed. Please try manually:")
-                            webbrowser.open(
-                                f"https://github.com/{repo}/releases/download/{version}/{download}"
-                            )
-                        else:
-                            needs_git_update = False
-                            # reconfigure credential manager to make sure we have the proper path
-                            pbtools.run([*pbgit.get_gcm_executable(), "configure"])
-                        os.remove(download_path)
-                else:
-                    proc = pbtools.run(
-                        [pbgit.get_git_executable(), "update-microsoft-git"]
-                    )
-                    # if non-zero, error out
-                    if proc.returncode:
-                        pblog.error(
-                            "Git auto-update failed, please download and install manually."
-                        )
-                    else:
-                        needs_git_update = False
-                        input(
-                            "Launching Git update, please press enter when done installing. "
-                        )
-            if needs_git_update:
-                pblog.error(
-                    f"Please install the supported Git version from https://github.com/{repo}/releases/tag/{version}"
-                )
-                pblog.error(
-                    f"Visit {pbconfig.get('git_instructions')} for installation instructions"
-                )
+            try:
+                match sys.platform:
+                    case "win32": subprocess.run(['gh', 'release', 'download', supported_git_version, '-p', 'Git*.exe', '-R', 'microsoft/git'], check=True)
+                    case "darwin": subprocess.run(['gh', 'release', 'download', supported_git_version, '-p', 'git*.pkg', '-R', 'microsoft/git'], check=True)
+            except subprocess.CalledProcessError as e:
+                pblog.error(f"Command failed with return code {e.returncode}")
+
+            git_installer = [file for file in os.listdir() if file.startswith("Git") or file.startswith("git")][0]
+
+            # Install Git
+            try:
+                match sys.platform:
+                    case "win32":  subprocess.run([git_installer], '/VERYSILENT', check=True)
+                    case "darwin": subprocess.run(['sudo', 'installer', '-pkg', git_installer, '-target', '/'], check=True)
+                pblog.info(f'Installing Git {supported_git_version}...')
+            except subprocess.CalledProcessError as e:
+                pblog.error(f"Command failed with return code {e.returncode}")
+
+            pblog.info(f'Git {supported_git_version} installed successfully.')
+            # Delete installation file
+            os.remove(git_installer)
 
         if (
             os.name == "nt"
@@ -195,55 +198,38 @@ def sync_handler(sync_val: str, repository_val=None):
         if detected_lfs_version == supported_lfs_version:
             pblog.info(f"Current Git LFS version: {detected_lfs_version}")
         else:
-            pblog.warning(
-                "Git LFS is not updated to the supported version in your system"
-            )
-            pblog.warning(f"Supported Git LFS Version: {supported_lfs_version}")
-            pblog.warning(f"Current Git LFS Version: {detected_lfs_version}")
-            version = f"v{supported_lfs_version}"
-            needs_git_update = True
-            repo = "git-lfs/git-lfs"
-            if os.name == "nt":
-                pblog.info("Auto-updating Git LFS...")
-                directory = "Saved/PBSyncDownloads"
-                download = f"git-lfs-windows-{version}.exe"
-                result = pbgh.download_release_file(
-                    version,
-                    download,
-                    directory=directory,
-                    repo=f"https://github.com/{repo}",
-                )
-                if result != 0:
-                    pblog.error(
-                        "Git LFS auto-update failed, please download and install manually."
-                    )
-                    webbrowser.open(
-                        f"https://github.com/{repo}/releases/download/{version}/{download}"
-                    )
-                else:
-                    download_path = f"Saved\\PBSyncDownloads\\{download}"
-                    proc = pbtools.run([download_path])
-                    if proc.returncode:
-                        pblog.error(
-                            "Git LFS auto-update failed, please download and install manually."
-                        )
-                        webbrowser.open(
-                            f"https://github.com/{repo}/releases/download/{version}/{download}"
-                        )
-                    else:
-                        # install LFS for the user
-                        current_drive = Path().resolve()
-                        current_drive = current_drive.drive or current_drive.root
-                        pbtools.run(
-                            [pbgit.get_lfs_executable(), "install"], cwd=current_drive
-                        )
-                        needs_git_update = False
-                    os.remove(download_path)
+            # Download Git LFS
+            try:
+                match sys.platform:
+                    case "win32": subprocess.run(['gh', 'release', 'download', supported_lfs_version, '-p', '*.exe', '-R', 'git-lfs/git-lfs'], check=True)
+                    case "darwin":
+                        if platform.machine() == "AMD64":
+                            subprocess.run(['gh', 'release', 'download', supported_lfs_version, '-p', '*darwin-amd64*', '-R', 'git-lfs/git-lfs'], check=True)
+                        else:
+                            subprocess.run(['gh', 'release', 'download', supported_lfs_version, '-p', '*darwin-arm64*', '-R', 'git-lfs/git-lfs'], check=True)
+            except subprocess.CalledProcessError as e:
+                pblog.error(f"Command failed with return code {e.returncode}")
+    
+            # Find the downloaded .exe (Windows) or folder (Mac OS)
+            lfs_installer = [file for file in os.listdir() if file.startswith("git-lfs")][0]
 
-            if needs_git_update:
-                pblog.error(
-                    f"Please install the supported Git LFS version from https://github.com/{repo}/releases/tag/{version}"
-                )
+            try:
+                match sys.platform:
+                    case "win32": subprocess.run([lfs_installer], '/VERYSILENT', check=True)
+                    case "darwin":
+                        subprocess.run(['unzip', lfs_installer], check=True)
+                        subprocess.run(['sudo', f"./{lfs_installer}/install.sh"], check=True)
+                pblog.info(f"Installing Git LFS {supported_lfs_version}...")
+            except subprocess.CalledProcessError as e:
+                pblog.error(f"Command failed with return code {e.returncode}")
+
+            pblog.info(f'Git LFS {supported_lfs_version} installed successfully.')
+
+            # Delete installation file/folder
+            if path.isfile(lfs_installer):
+                os.remove(lfs_installer)
+            elif path.isdir(lfs_installer):
+                shutil.rmtree(lfs_installer)
 
         # check if Git LFS was installed to a different path
         if os.name == "nt" and pbgit.get_lfs_executable() == "git-lfs":
@@ -978,3 +964,4 @@ if __name__ == "__main__":
         # Working directory fix for scripts calling PBSync from Scripts folder
         os.chdir("..")
     main(sys.argv[1:])
+

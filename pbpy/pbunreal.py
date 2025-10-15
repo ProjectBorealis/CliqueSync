@@ -7,14 +7,13 @@ import platform
 import re
 import shutil
 import time
-import urllib.request
 import zipfile
 from functools import lru_cache
 from pathlib import Path
 from shutil import disk_usage, move, rmtree
 from urllib.parse import urlparse
 
-from pbpy import pbconfig, pbgit, pbinfo, pblog, pbtools, pbuac
+from pbpy import pbconfig, pbgit, pbhttp, pbinfo, pblog, pbtools, pbuac
 
 # Those variable values are not likely to be changed in the future, it's safe to keep them hardcoded
 uev_prefix = "uev:"
@@ -1299,10 +1298,7 @@ def inspect_source(all=False):
     if not zip_path.exists():
         pblog.info(f"Downloading Resharper {version}")
         url = f"https://download-cdn.jetbrains.com/resharper/dotUltimate.{version}/{zip_name}"
-        with urllib.request.urlopen(url) as response, open(
-            str(zip_path), "wb"
-        ) as out_file:
-            shutil.copyfileobj(response, out_file)
+        pbhttp.download(url, str(zip_path))
     resharper_dir = saved_dir / Path("ResharperCLI")
     pblog.info(f"Unpacking Resharper {version}")
     shutil.unpack_archive(str(zip_path), str(resharper_dir))
@@ -1499,3 +1495,4 @@ def build_installed_build():
     if not set_engine_version(version):
         pbtools.error_state("Error while updating engine version in .uproject file")
     pblog.info(f"Successfully changed engine version as {str(version)}")
+

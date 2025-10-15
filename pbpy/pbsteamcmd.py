@@ -3,14 +3,13 @@ import re
 import shutil
 import time
 import traceback
-import urllib.request
 from pathlib import Path
 
 import gevent
 import steam.protobufs.steammessages_partnerapps_pb2  # don't remove
 from steam.client import SteamClient
 
-from pbpy import pbconfig, pbinfo, pblog, pbtools
+from pbpy import pbconfig, pbhttp, pbinfo, pblog, pbtools
 
 drm_upload_regex = re.compile(
     r"https:\/\/partnerupload\.steampowered\.com\/upload\/(\d+)"
@@ -212,10 +211,7 @@ def publish_build(
                 )
                 url = resp.body.download_url
                 if url:
-                    with urllib.request.urlopen(url) as response, open(
-                        str(drm_output), "wb"
-                    ) as out_file:
-                        shutil.copyfileobj(response, out_file)
+                    pbhttp.download(url, str(drm_output))
                 steamclient.close()
 
             if not drm_output.exists() and drm_download_failed:
