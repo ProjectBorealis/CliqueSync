@@ -199,7 +199,7 @@ def sync_handler(sync_val: str, repository_val=None):
         supported_lfs_version = pbconfig.get("supported_lfs_version")
         if (
             detected_lfs_version == supported_lfs_version
-            or not supported_git_version
+            or not supported_lfs_version
             and detected_lfs_version
         ):
             pblog.info(f"Current Git LFS version: {detected_lfs_version}")
@@ -207,9 +207,14 @@ def sync_handler(sync_val: str, repository_val=None):
             pblog.warning(
                 "Git LFS is not updated to the supported version in your system"
             )
-            pblog.warning(f"Supported Git LFS Version: {supported_lfs_version}")
+            if supported_lfs_version:
+                pblog.warning(f"Supported Git LFS Version: {supported_lfs_version}")
+                version = f"v{supported_lfs_version}"
+                manual_url = f"https://github.com/{repo}/releases/download/{version}/{download}"
+            else:
+                version = "*"
+                manual_url = f"https://github.com/{repo}/releases/latest"
             pblog.warning(f"Current Git LFS Version: {detected_lfs_version}")
-            version = f"v{supported_lfs_version}"
             needs_git_update = True
             repo = "git-lfs/git-lfs"
             if os.name == "nt":
@@ -217,7 +222,7 @@ def sync_handler(sync_val: str, repository_val=None):
                 directory = "Saved/PBSyncDownloads"
                 download = f"git-lfs-windows-{version}.exe"
                 result = pbgh.download_release_file(
-                    version,
+                    version if version != "*" else None,
                     download,
                     directory=directory,
                     repo=f"https://github.com/{repo}",
@@ -226,9 +231,7 @@ def sync_handler(sync_val: str, repository_val=None):
                     pblog.error(
                         "Git LFS auto-update failed, please download and install manually."
                     )
-                    webbrowser.open(
-                        f"https://github.com/{repo}/releases/download/{version}/{download}"
-                    )
+                    webbrowser.open(manual_url)
                 else:
                     download_path = f"Saved\\PBSyncDownloads\\{download}"
                     proc = pbtools.run([download_path])
@@ -236,9 +239,7 @@ def sync_handler(sync_val: str, repository_val=None):
                         pblog.error(
                             "Git LFS auto-update failed, please download and install manually."
                         )
-                        webbrowser.open(
-                            f"https://github.com/{repo}/releases/download/{version}/{download}"
-                        )
+                        webbrowser.open(manual_url)
                     else:
                         # install LFS for the user
                         current_drive = Path().resolve()

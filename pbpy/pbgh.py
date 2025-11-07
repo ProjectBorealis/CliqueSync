@@ -57,7 +57,7 @@ def get_cli_executable(git_url=None):
         return pbinfo.format_repo_folder(glab_executable_path)
 
 
-def download_release_file(version, pattern=None, directory=None, repo: str | None=None):
+def download_release_file(version: str | None, pattern=None, directory=None, repo: str | None=None):
 
     cli_exec_path = get_cli_executable(repo)
 
