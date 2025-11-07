@@ -22,4 +22,4 @@ pefile = {version = "*", sys_platform = "== 'win32'"}
 steam = {extras = ["client"], version = "*"}
 
 [requires]
-python_version = "3.12"
+python_version = "3.14"
