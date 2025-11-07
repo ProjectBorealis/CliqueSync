@@ -210,10 +210,8 @@ def sync_handler(sync_val: str, repository_val=None):
             if supported_lfs_version:
                 pblog.warning(f"Supported Git LFS Version: {supported_lfs_version}")
                 version = f"v{supported_lfs_version}"
-                manual_url = f"https://github.com/{repo}/releases/download/{version}/{download}"
             else:
                 version = "*"
-                manual_url = f"https://github.com/{repo}/releases/latest"
             pblog.warning(f"Current Git LFS Version: {detected_lfs_version}")
             needs_git_update = True
             repo = "git-lfs/git-lfs"
@@ -221,6 +219,10 @@ def sync_handler(sync_val: str, repository_val=None):
                 pblog.info("Auto-updating Git LFS...")
                 directory = "Saved/PBSyncDownloads"
                 download = f"git-lfs-windows-{version}.exe"
+                if supported_lfs_version:
+                    manual_url = f"https://github.com/{repo}/releases/download/{version}/{download}"
+                else:
+                    manual_url = f"https://github.com/{repo}/releases/latest"
                 result = pbgh.download_release_file(
                     version if version != "*" else None,
                     download,
@@ -799,6 +801,8 @@ PUBLISHERS = {
 def publish_handler(publish_val):
     publishers = pbconfig.get("publish_publishers")
     for publisher in publishers:
+        if publisher == "":
+            error_state("Empty publisher configured, please configure a publisher with a name")
         fn = PUBLISHERS.get(publisher)
         if not fn:
             error_state(f"Unknown publisher: {publisher}")
