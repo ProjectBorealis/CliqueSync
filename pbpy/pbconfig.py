@@ -77,11 +77,11 @@ class MultiConfigParser(CustomConfigParser):
 
 class CustomInterpolation(configparser.BasicInterpolation):
     def before_get(
-        self, parser, section: str, option: str, value: str, defaults
+        self, parser, section: configparser._SectionName, option: str, value: str, defaults: configparser._Section
     ) -> str:
         val = super().before_get(parser, section, option, value, defaults)
         if get("is_ci"):
-            return os.getenv(val)
+            return os.getenv(val) or ""
         return val
 
 

@@ -650,7 +650,7 @@ def resolve_conflicts_and_pull(retry_count=0, max_retries=1):
 
             changed_files = [file for file in changed_files if pbgit.is_lfs_file(file)]
 
-            cpus = os.cpu_count()
+            cpus = os.cpu_count() or 1
             total = len(changed_files)
             fetch_processes = min(cpus, math.ceil(total / 50))
             fetch_batch_size = min(50, math.ceil(total / fetch_processes))

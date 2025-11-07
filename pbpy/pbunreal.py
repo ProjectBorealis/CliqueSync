@@ -104,7 +104,6 @@ def get_latest_project_version():
                     return ln.replace(project_version_key, "").rstrip()
     except Exception as e:
         pblog.exception(str(e))
-        return None
     return None
 
 
@@ -688,7 +687,7 @@ def get_bundle():
     return bundle_name
 
 
-def download_engine(bundle_name=None, download_symbols=False):
+def download_engine(bundle_name: str, download_symbols: bool):
     version = get_engine_version_with_prefix()
     legacy_archives = not uses_longtail()
 
@@ -816,115 +815,115 @@ def download_engine(bundle_name=None, download_symbols=False):
                         pblog.error(f"Required space: {must_free:.2f}GB")
                         pbtools.error_state()
 
-    # Extract with ueversionator
-    if (needs_exe or needs_symbols) and legacy_archives:
-        command_set = [f"ueversionator{get_exe_ext()}"]
+        # Extract with ueversionator
+        if (needs_exe or needs_symbols) and legacy_archives:
+            command_set = [f"ueversionator{get_exe_ext()}"]
 
-        command_set.append("-assume-valid")
-        command_set.append("-user-config")
-        command_set.append(pbconfig.get("user_config"))
+            command_set.append("-assume-valid")
+            command_set.append("-user-config")
+            command_set.append(pbconfig.get("user_config"))
 
-        if bundle_name is not None:
-            command_set.append("-bundle")
-            command_set.append(str(bundle_name))
+            if bundle_name is not None:
+                command_set.append("-bundle")
+                command_set.append(str(bundle_name))
 
-        if is_ue5():
-            command_set.append("-ue5")
-            command_set.append("-basedir")
-            command_set.append("ue5")
+            if is_ue5():
+                command_set.append("-ue5")
+                command_set.append("-basedir")
+                command_set.append("ue5")
 
-        if is_ci:
-            # If we're CI, write our environment variable to user config
-            user_config = pbconfig.get_user_config()
-            for section in user_config.sections():
-                for key in list(user_config[section].keys()):
-                    val = pbconfig.get_user(section, key)
-                    if val:
-                        user_config[section][key] = val
-                    else:
-                        user_config.remove_option(section, key)
-            with open(pbconfig.get("user_config"), "w") as user_config_file:
-                pbconfig.get_user_config().write(user_config_file)
+            if is_ci:
+                # If we're CI, write our environment variable to user config
+                user_config = pbconfig.get_user_config()
+                for section in user_config.sections():
+                    for key in list(user_config[section].keys()):
+                        val = pbconfig.get_user(section, key)
+                        if val:
+                            user_config[section][key] = val
+                        else:
+                            user_config.remove_option(section, key)
+                with open(pbconfig.get("user_config"), "w") as user_config_file:
+                    pbconfig.get_user_config().write(user_config_file)
 
-        if pbtools.run(command_set).returncode != 0:
-            return False
-    else:
-        ensure_ue_closed()
-        gcs_bucket = get_versionator_gsuri()
-        # TODO: maybe cache out Saved and Intermediate folders?
-        # current legacy archive behavior obviously doesn't keep them for new installs, but we could now
-        # have to copy them out and then copy them back in
-
-        # query build version so we can bump it up
-        build_version_path = base_path / "Engine" / "Build" / "Build.version"
-
-        branch_version = None
-        if build_version_path.exists():
-            with open(build_version_path) as f:
-                build_version = json.load(f)
-                branch_version = build_version.get("BranchName")
-
-        if branch_version:
-            pblog.info(
-                f"Comparing target engine version {get_engine_version_with_prefix()} with local engine version {branch_version}"
-            )
-
-        if get_engine_version_with_prefix() == branch_version:
-            # fast version
-            proc = pbtools.run_stream(
-                [
-                    pbinfo.format_repo_folder(longtail_path),
-                    "get",
-                    "--source-path",
-                    f"{gcs_bucket}lt/{bundle_name}/{version}.json",
-                    "--target-path",
-                    str(base_path),
-                    "--cache-path",
-                    f"Saved/longtail/cache/{bundle_name}",
-                    "--enable-file-mapping",
-                ],
-                env={"GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"},
-                logfunc=pbtools.progress_stream_log,
-            )
+            if pbtools.run(command_set).returncode != 0:
+                return False
         else:
-            # verify a new install
-            proc = pbtools.run_stream(
-                [
-                    pbinfo.format_repo_folder(longtail_path),
-                    "get",
-                    "--source-path",
-                    f"{gcs_bucket}lt/{bundle_name}/{version}.json",
-                    "--target-path",
-                    str(base_path),
-                    "--cache-path",
-                    f"Saved/longtail/cache/{bundle_name}",
-                    "--no-cache-target-index",
-                    "--validate",
-                    "--enable-file-mapping",
-                ],
-                env={"GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"},
-                logfunc=pbtools.progress_stream_log,
-            )
-        # print out a newline
-        print("")
-        if proc.returncode:
-            pbtools.error_state(
-                f"Failed to download engine update. Make sure your system time is synced. If this issue persists, please request help in {pbconfig.get('support_channel')}."
-            )
-        # TODO: similarly, have to copy PDBs out into a store so longtail doesn't touch the engine and delete everything but symbols
-        if download_symbols:
-            pblog.warning(
-                "Symbols download not supported with incremental delivery at this time."
-            )
-        if not register_engine(engine_id, get_engine_base_path()):
-            needs_exe = False
+            ensure_ue_closed()
+            gcs_bucket = get_versionator_gsuri()
+            # TODO: maybe cache out Saved and Intermediate folders?
+            # current legacy archive behavior obviously doesn't keep them for new installs, but we could now
+            # have to copy them out and then copy them back in
 
-    # if not CI, run the setup tasks
-    if root is not None and not is_ci and needs_exe:
-        run_unreal_setup()
-        # generate project files for developers
-        if not pbgit.is_on_expected_branch():
-            generate_project_files()
+            # query build version so we can bump it up
+            build_version_path = base_path / "Engine" / "Build" / "Build.version"
+
+            branch_version = None
+            if build_version_path.exists():
+                with open(build_version_path) as f:
+                    build_version = json.load(f)
+                    branch_version = build_version.get("BranchName")
+
+            if branch_version:
+                pblog.info(
+                    f"Comparing target engine version {get_engine_version_with_prefix()} with local engine version {branch_version}"
+                )
+
+            if get_engine_version_with_prefix() == branch_version:
+                # fast version
+                proc = pbtools.run_stream(
+                    [
+                        pbinfo.format_repo_folder(longtail_path),
+                        "get",
+                        "--source-path",
+                        f"{gcs_bucket}lt/{bundle_name}/{version}.json",
+                        "--target-path",
+                        str(base_path),
+                        "--cache-path",
+                        f"Saved/longtail/cache/{bundle_name}",
+                        "--enable-file-mapping",
+                    ],
+                    env={"GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"},
+                    logfunc=pbtools.progress_stream_log,
+                )
+            else:
+                # verify a new install
+                proc = pbtools.run_stream(
+                    [
+                        pbinfo.format_repo_folder(longtail_path),
+                        "get",
+                        "--source-path",
+                        f"{gcs_bucket}lt/{bundle_name}/{version}.json",
+                        "--target-path",
+                        str(base_path),
+                        "--cache-path",
+                        f"Saved/longtail/cache/{bundle_name}",
+                        "--no-cache-target-index",
+                        "--validate",
+                        "--enable-file-mapping",
+                    ],
+                    env={"GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"},
+                    logfunc=pbtools.progress_stream_log,
+                )
+            # print out a newline
+            print("")
+            if proc.returncode:
+                pbtools.error_state(
+                    f"Failed to download engine update. Make sure your system time is synced. If this issue persists, please request help in {pbconfig.get('support_channel')}."
+                )
+            # TODO: similarly, have to copy PDBs out into a store so longtail doesn't touch the engine and delete everything but symbols
+            if download_symbols:
+                pblog.warning(
+                    "Symbols download not supported with incremental delivery at this time."
+                )
+            if not register_engine(engine_id, get_engine_base_path()):
+                needs_exe = False
+
+        # if not CI, run the setup tasks
+        if not is_ci and needs_exe:
+            run_unreal_setup()
+            # generate project files for developers
+            if not pbgit.is_on_expected_branch():
+                generate_project_files()
 
     return True
 
@@ -951,7 +950,7 @@ def ue_config(path):
         interpolation=configparser.Interpolation(),
     )
     # case sensitive
-    config.optionxform = lambda option: option
+    config.optionxform = lambda optionstr: optionstr
     write_config = True
     if os.path.exists(path):
         try:
@@ -959,7 +958,7 @@ def ue_config(path):
         except UnicodeDecodeError:
             try:
                 with open(path, "r", encoding="utf-16") as f:
-                    config.readfp(f)
+                    config.read_file(f)
             except Exception as e:
                 pblog.error(f"Unreal config parsing failed for {path}. Skipping.")
                 pblog.exception(str(e))
@@ -982,7 +981,7 @@ def update_source_control():
         ] = "Git LFS 2"
         git_lfs_2 = source_control_config["GitSourceControl.GitSourceControlSettings"]
         binary_path = pbgit.get_git_executable()
-        if binary_path != "git":
+        if binary_path and binary_path != "git":
             git_lfs_2["BinaryPath"] = binary_path
         else:
             git_paths = [path for path in pbtools.whereis("git") if "cmd" in path.parts]
@@ -1138,12 +1137,7 @@ def build_source(for_distribution=True):
     global use_source_dir
     engine_version = get_engine_version()
     if engine_version:
-        bundle_name = (
-            pbconfig.get("uev_ci_bundle")
-            if pbconfig.get("is_ci")
-            else pbconfig.get("uev_default_bundle")
-        )
-        bundle_name = pbconfig.get_user("project", "bundle", default=bundle_name)
+        bundle_name = get_bundle()
         symbols_needed = is_versionator_symbols_enabled()
         if for_distribution:
             use_source_dir = False

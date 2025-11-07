@@ -105,7 +105,9 @@ def sync_handler(sync_val: str, repository_val=None):
                         else:
                             needs_git_update = False
                             # reconfigure credential manager to make sure we have the proper path
-                            pbtools.run([*pbgit.get_gcm_executable(), "configure"])
+                            gcm_bin = pbgit.get_gcm_executable()
+                            if gcm_bin:
+                                pbtools.run([*gcm_bin, "configure"])
                         os.remove(download_path)
                 else:
                     proc = pbtools.run(
@@ -376,7 +378,9 @@ def sync_handler(sync_val: str, repository_val=None):
                             )
                         else:
                             # reconfigure credential manager to make sure we have the proper path
-                            pbtools.run([*pbgit.get_gcm_executable(), "configure"])
+                            gcm_bin = pbgit.get_gcm_executable()
+                            if gcm_bin:
+                                pbtools.run([*gcm_bin, "configure"])
                             needs_git_update = False
                         os.remove(download_path)
 
@@ -500,7 +504,7 @@ def sync_handler(sync_val: str, repository_val=None):
                 # checkout old checksum file from tag
                 pbgit.sync_file(checksum_json_path, project_version)
 
-            if needs_binaries_pull:
+            if needs_binaries_pull and project_version:
                 pblog.info("Binaries are not up to date, pulling new binaries...")
                 ret = pbgh.pull_binaries(project_version)
                 if ret == 0:
@@ -611,9 +615,13 @@ def sync_handler(sync_val: str, repository_val=None):
             )
         elif pbunreal.is_ue_closed():
             if launch_pref == "editor":
+                uproject_file = pbconfig.get("uproject_name")
+                path = str(Path(uproject_file).resolve())
+                
                 extra_args = pbconfig.get_user(
                     "project", "editor_args", default=""
                 ).split()
+                
                 if extra_args:
                     launch_args = [pbunreal.get_editor_path(), path]
                     launch_args.extend(extra_args)
@@ -626,8 +634,6 @@ def sync_handler(sync_val: str, repository_val=None):
                         )
                         pbunreal.run_unreal_setup()
                     if pbunreal.check_ue_file_association():
-                        uproject_file = pbconfig.get("uproject_name")
-                        path = str(Path(uproject_file).resolve())
                         try:
                             os.startfile(path)
                             launched_editor = True
@@ -656,8 +662,13 @@ def sync_handler(sync_val: str, repository_val=None):
             #    pbtools.run_non_blocking(f"\"{str(pbunreal.get_devenv_path())}\" \"{str(pbunreal.get_sln_path())}\" /DebugExe \"{str(pbunreal.get_editor_path())}\" \"{str(pbunreal.get_uproject_path())}\" -skipcompile")
 
     elif sync_val == "binaries":
+        # TODO: main sync routine has more binaries syncing logic than this, extract to a function
         project_version = pbunreal.get_project_version()
-        ret = pbgh.pull_binaries(project_version, True)
+        ret = 1
+        
+        if project_version:
+            ret = pbgh.pull_binaries(project_version, True)
+        
         if ret == 0:
             pblog.info(
                 f"Binaries for {project_version} pulled and extracted successfully"
@@ -790,6 +801,7 @@ def publish_handler(publish_val):
         fn = PUBLISHERS.get(publisher)
         if not fn:
             error_state(f"Unknown publisher: {publisher}")
+            return
         result = fn(publish_val.lower(), publisher)
         if result != 0:
             error_state(
@@ -868,6 +880,7 @@ def main(argv):
         pblog.error("Did you mean to launch UpdateProject?")
         input("Press enter to continue...")
         error_state(hush=True, term=True)
+        return
 
     if not (args.debugpath is None):
         # Work on provided debug path
