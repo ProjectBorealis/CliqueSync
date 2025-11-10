@@ -324,7 +324,7 @@ def main(argv):
             "resharper_version": ("resharper/version", None, "", True),
             "engine_prefix": ("versionator/engineprefix", None, "", True),
             "engine_type": ("versionator/enginetype", None, "ue5", True),
-            "uses_gcs": ("versionator/uses_gcs", None, False, True),
+            "cloud_storage": ("versionator/cloud_storage", None, False, True),
             "uses_longtail": ("versionator/uses_longtail", None, False, True),
             "git_instructions": (
                 "msg/git_instructions",

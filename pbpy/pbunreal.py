@@ -460,16 +460,36 @@ def clean_old_engine_installations(keep=1):
     return False
 
 
+def get_prefixed_bucket_url(url: str | None) -> str | None:
+    if not url:
+        return None
+    if pbconfig.get("cloud_storage") == "gcs":
+        return f"gs://{url}/"
+    if pbconfig.get("cloud_storage") == "s3":
+        return f"s3://{url}/"
+    return url
+
+
+def get_normalized_bucket(url: str | None) -> str | None:
+    if not url:
+        return None
+    parsed = urlparse(url)
+    if not parsed.hostname:
+        return None
+    bucket = parsed.hostname
+    if parsed.path and parsed.path != "/":
+        bucket += parsed.path
+    return bucket
+
+
 @lru_cache()
 def get_versionator_gs_base(fallback=None):
-    if pbconfig.get("uses_gcs") == "True":
+    if pbconfig.get("cloud_storage"):
         try:
             uev_config = configparser.ConfigParser()
             uev_config.read(".ueversionator")
             baseurl = uev_config.get("ueversionator", "baseurl", fallback=fallback)
-            if baseurl:
-                domain = urlparse(baseurl).hostname
-                return domain
+            return get_normalized_bucket(baseurl)
         except Exception as e:
             pblog.exception(str(e))
     return None
@@ -478,14 +498,12 @@ def get_versionator_gs_base(fallback=None):
 @lru_cache()
 def get_versionator_gsuri(fallback=None):
     domain = get_versionator_gs_base(fallback)
-    if not domain:
-        return None
-    return f"gs://{domain}/"
+    return get_prefixed_bucket_url(domain)
 
 
 @lru_cache
 def get_ddc_url(fallback=None, upload=False):
-    if pbconfig.get("uses_gcs") == "True":
+    if pbconfig.get("cloud_storage"):
         try:
             uev_config = configparser.ConfigParser()
             uev_config.read(".ueversionator")
@@ -501,18 +519,13 @@ def get_ddc_url(fallback=None, upload=False):
 @lru_cache()
 def get_ddc_bucket(fallback=None):
     baseurl = get_ddc_url(fallback=fallback)
-    if baseurl:
-        domain = urlparse(baseurl).hostname
-        return domain
-    return None
+    return get_normalized_bucket(baseurl)
 
 
 @lru_cache()
 def get_ddc_gsuri(fallback=None):
     bucket = get_ddc_bucket(fallback=fallback)
-    if bucket:
-        return f"gs://{bucket}/"
-    return None
+    return get_prefixed_bucket_url(bucket)
 
 
 @lru_cache()
@@ -1440,7 +1453,7 @@ def build_installed_build():
     # UE4 has a branch prefix, UE5 does not
     version = build_version["BranchName"].replace("++UE4+", "")
 
-    if pbconfig.get("uses_gcs") == "True":
+    if pbconfig.get("cloud_storage"):
         if uses_longtail():
             bundle_name = pbconfig.get("uev_default_bundle")
             project_path = get_uproject_path().parent

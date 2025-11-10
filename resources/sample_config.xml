@@ -24,7 +24,7 @@
         <cibundle>ci-engine</cibundle>
         <engineprefix>SP</engineprefix>
         <enginetype>ue5</enginetype>
-        <uses_gcs>True</uses_gcs>
+        <cloud_storage>gcs</cloud_storage>
     </versionator>
     <log>
         <file>pbsync_log.txt</file>
