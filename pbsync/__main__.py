@@ -1,4 +1,5 @@
 import argparse
+import json
 import multiprocessing
 import os
 import sys
@@ -90,6 +91,15 @@ def sync_handler(sync_val: str):
         sync_workflow.append(actions.pull_binaries)
     elif sync_val == "engine":
         sync_workflow.append(actions.download_engine)
+    else:
+        with open("cliqueworkflows.json") as f:
+            workflows = json.load(f)
+        if sync_val in workflows:
+            actions.create_workflow(sync_val, workflows[sync_val])
+            actions.run_workflow(sync_val)
+        else:
+            error_state(f"Unknown workflow: {sync_val}")
+        return
 
     actions.create_workflow("sync_workflow", sync_workflow)
     actions.run_workflow("sync_workflow")
@@ -218,14 +228,16 @@ def main(argv):
 
     parser.add_argument(
         "--sync",
-        help="Main command for the CliqueSync, synchronizes the project with latest changes from the repo, and does some housekeeping",
-        choices=[
-            "all",
-            "partial",
-            "binaries",
-            "engine",
-            "force",
-        ],
+        help="""
+        Main command for CliqueSync, runs a sync workflow. By default synchronizes the project with latest changes from the repo, and does some housekeeping. Default options:
+        all (default): Full sync, syncs git repo, pulls binaries, downloads engine, builds if needed, and launches project
+        force: Forces a full sync even if not on expected branch
+        partial: Does a partial sync, only syncing git repo and pulling binaries
+        binaries: Only pulls binaries
+        engine: Only downloads engine
+
+        Otherwise, if a custom workflow name is provided, CliqueSync will attempt to load the workflow from cliqueworkflows.json file and execute it.
+        """,
         const="all",
         nargs="?",
     )
