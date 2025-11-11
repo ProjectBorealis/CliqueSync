@@ -24,7 +24,9 @@ uplugin_version_key = "VersionName"
 uproject_version_key = "EngineAssociation"
 project_version_key = "ProjectVersion="
 ddc_folder_name = "DerivedDataCache"
-uev_user_config = "ue4v-user"
+game_config = "Config/DefaultGame.ini"
+uev_user_config = "uev-user"
+
 
 engine_installation_folder_regex = [r"[0-9].[0-9]{2}.*-", r"-[0-9]{8}"]
 
@@ -98,7 +100,9 @@ def is_using_custom_version():
 @lru_cache()
 def get_latest_project_version():
     try:
-        with open(pbconfig.get("defaultgame_path")) as ini_file:
+        project_path = get_uproject_path().parent
+        game_config_path = project_path / game_config
+        with open(game_config_path) as ini_file:
             for ln in ini_file:
                 if ln.startswith(project_version_key):
                     return ln.replace(project_version_key, "").rstrip()
@@ -121,7 +125,9 @@ def set_project_version(version_string, new_project_version):
     temp_path = "tmpProj.txt"
     # Create a temp file, do the changes there, and replace it with actual file
     try:
-        with open(pbconfig.get("defaultgame_path")) as ini_file:
+        project_path = get_uproject_path().parent
+        game_config_path = project_path / game_config
+        with open(game_config_path) as ini_file:
             with open(temp_path, "wt") as fout:
                 if new_project_version:
                     for ln in ini_file:
@@ -135,8 +141,8 @@ def set_project_version(version_string, new_project_version):
                             fout.write(f"{project_version_key}{version_string}\n")
                         else:
                             fout.write(ln)
-        os.remove(pbconfig.get("defaultgame_path"))
-        move(temp_path, pbconfig.get("defaultgame_path"))
+        os.remove(game_config_path)
+        move(temp_path, game_config_path)
     except Exception as e:
         pblog.exception(str(e))
         return False
@@ -147,7 +153,7 @@ def set_engine_version(version_string):
     temp_path = "tmpEng.txt"
     try:
         # Create a temp file, do the changes there, and replace it with actual file
-        with open(pbconfig.get("uproject_name")) as uproject_file:
+        with open(get_uproject_name()) as uproject_file:
             with open(temp_path, "wt") as fout:
                 for ln in uproject_file:
                     if uproject_version_key in ln:
@@ -156,8 +162,8 @@ def set_engine_version(version_string):
                         )
                     else:
                         fout.write(ln)
-        os.remove(pbconfig.get("uproject_name"))
-        move(temp_path, pbconfig.get("uproject_name"))
+        os.remove(get_uproject_name())
+        move(temp_path, get_uproject_name())
     except Exception as e:
         pblog.exception(str(e))
         return False
@@ -200,7 +206,7 @@ def get_engine_prefix() -> str:
 
 @lru_cache()
 def get_engine_association():
-    with open(pbconfig.get("uproject_name")) as uproject_file:
+    with open(get_uproject_name()) as uproject_file:
         data = json.load(uproject_file)
         engine_association = str(data[uproject_version_key])
         return engine_association
@@ -274,7 +280,7 @@ def get_engine_install_root(prompt=True) -> str | None:
         print(
             "=========================================================================\n"
         )
-        print(f">>>>> Project path: {curdir}\n")
+        print(f">>>>> Current path: {curdir}\n")
         print("Which directory should these engine downloads be stored in?\n")
 
         options = []
@@ -381,7 +387,7 @@ def generate_ddc_data():
                 err = pbtools.run(
                     [
                         str(ue_editor_executable),
-                        str(Path(pbconfig.get("uproject_name")).resolve()),
+                        str(Path(get_uproject_name()).resolve()),
                         "-run=DerivedDataCache",
                         "-fill",
                     ]
@@ -662,9 +668,24 @@ def run_unreal_setup():
         pbtools.run(cmdline)
 
 
+selected_uproject: str | None = None
+
+
+@lru_cache()
+def get_uproject_name():
+    if selected_uproject:
+        return selected_uproject
+    return pbconfig.get("uproject_name")
+
+
+def select_uproject_name(uproject_file: str):
+    global selected_uproject
+    selected_uproject = uproject_file
+
+
 @lru_cache()
 def get_uproject_path():
-    return Path(pbconfig.get("uproject_name")).resolve()
+    return Path(get_uproject_name()).resolve()
 
 
 def generate_project_files():

@@ -4,6 +4,7 @@ import multiprocessing
 import os
 import sys
 from functools import partial
+from pathlib import Path
 
 from pbpy import (
     pbbutler,
@@ -308,7 +309,7 @@ def main(argv):
                 ["main"],
                 False,
             ),
-            "git_url": ("git/url", None, None, True),
+            "git_url": ("git/url", None, "", True),
             "branches": ("git/branches/branch", None, ["main"], False),
             "log_file_path": ("log/file", None, "cliquesync_log.txt", True),
             "user_config": ("project/userconfig", None, ".user-sync", True),
@@ -317,13 +318,8 @@ def main(argv):
             "uev_ci_bundle": ("versionator/cibundle", None, "engine", True),
             "engine_base_version": ("project/enginebaseversion", None, "", True),
             "uproject_name": ("project/uprojectname", None, None, True),
-            "defaultgame_path": (
-                "project/defaultgameinipath",
-                None,
-                "Config/DefaultGame.ini",
-                True,
-            ),
             "package_pdbs": ("project/packagepdbs", None, False, True),
+            "repo_folder": ("project/repo_folder", None, "default", True),
             "publish_publishers": ("publish/publisher", None, [""], False),
             "publish_stagedir": ("publish/stagedir", None, "Saved/StagedBuilds", True),
             "dispatch_config": ("dispatch/config", None, "", True),
@@ -378,6 +374,56 @@ def main(argv):
     # Preparation
     config_handler(args.config, pbsync_config_parser_func)
     pblog.setup_logger(pbconfig.get("log_file_path"))
+
+    uproject_name = pbconfig.get("uproject_name")
+    if not uproject_name.endswith(".uproject"):
+
+        projects_folder = Path(uproject_name).resolve()
+        project_files = list(projects_folder.glob("*/*.uproject"))
+
+        if not project_files:
+            error_state(
+                f"Could not find any Unreal projects in the provided folder: {projects_folder}"
+            )
+            return
+
+        print(
+            "========================================================================="
+        )
+        print(
+            "|        This is a multi-project directory.                             |"
+        )
+        print(
+            "|        You need to select the project you'd like to sync.             |"
+        )
+        print(
+            "=========================================================================\n"
+        )
+        print(f">>>>> Multi-project path: {projects_folder}\n")
+        print("Which project would you like to sync?\n")
+
+        options = [file.stem for file in project_files]
+
+        for i, option in enumerate(options):
+            print(f"{i + 1}) {option}")
+
+        uproject_file = None
+        while True:
+            response = input(f"\nSelect an option (1-{len(options)}) and press enter: ")
+            try:
+                choice = int(response) - 1
+                if choice >= 0 and choice < len(options):
+                    uproject_file = project_files[choice].relative_to(Path.cwd())
+                    print("")
+                    pblog.success(f"Syncing project {options[choice]}.")
+                    break
+            except ValueError:
+                print("\n")
+
+            pblog.error(f"Invalid option {response}. Try again:\n")
+
+        if uproject_file:
+            pbunreal.select_uproject_name(str(uproject_file))
 
     # Do not process further if we're in an error state
     if pbtools.check_error_state():

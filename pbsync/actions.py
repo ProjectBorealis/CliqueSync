@@ -49,10 +49,10 @@ def register_action_pair(pop_func):
 workflows = {}
 
 
-def create_workflow(workflow_name: str, actions):
+def create_workflow(workflow_name: str, workflow_actions):
     def workflow():
         pblog.info("------------------")
-        for action in actions:
+        for action in workflow_actions:
             if callable(action):
                 action = action.__name__
             if action in actions:
@@ -216,7 +216,7 @@ def tidy_binaries():
 
 @register_action()
 def ensure_project_file():
-    uproject_file = pbconfig.get("uproject_name")
+    uproject_file = pbunreal.get_uproject_name()
     if pbgit.sync_file(uproject_file) != 0:
         pbtools.error_state(
             f"Something went wrong while updating the uproject file. Please request help in {pbconfig.get('support_channel')}."
@@ -271,18 +271,23 @@ def download_engine():
                 pblog.warning(
                     "Something went wrong while cleaning old engine installations. You may want to clean them manually."
                 )
+    else:
+        pblog.info("Using unmanaged standard engine.")
+    return True
 
 
 @register_action()
 def build_local():
     pbunreal.generate_project_files()
     pbunreal.build_source(for_distribution=False)
+    return True
 
 
 @register_action()
 def setup_unreal_git():
     pblog.info("Updating Unreal configuration settings")
     pbunreal.update_source_control()
+    return True
 
 
 @register_action()
@@ -305,7 +310,7 @@ def launch_project():
         )
     elif pbunreal.is_ue_closed():
         if launch_pref == "editor":
-            uproject_file = pbconfig.get("uproject_name")
+            uproject_file = pbunreal.get_uproject_name()
             path = str(Path(uproject_file).resolve())
 
             extra_args = pbconfig.get_user("project", "editor_args", default="").split()
@@ -348,3 +353,4 @@ def launch_project():
         # TODO
         # elif launch_pref == "debug":
         #    pbtools.run_non_blocking(f"\"{str(pbunreal.get_devenv_path())}\" \"{str(pbunreal.get_sln_path())}\" /DebugExe \"{str(pbunreal.get_editor_path())}\" \"{str(pbunreal.get_uproject_path())}\" -skipcompile")
+    return True
