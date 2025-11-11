@@ -630,18 +630,19 @@ def get_engine_base_path() -> Path | None:
 
 @lru_cache()
 def get_unreal_version_selector_path():
-    if get_engine_version() is None:
-        ftype_info = pbtools.get_one_line_output(["ftype", "Unreal.ProjectFile"])
-        if ftype_info is not None:
-            ftype_split = ftype_info.split('"')
-            if len(ftype_split) == 5:
-                return Path(ftype_split[1])
-        return None
-    else:
+    if get_engine_version():
         base_path = get_engine_base_path()
-        return base_path / Path(
+        selector_path = base_path / Path(
             f"Engine/Binaries/{get_platform_name()}/UnrealVersionSelector-{get_platform_name()}-Shipping{get_exe_ext()}"
         )
+        if selector_path.exists():
+            return selector_path
+    ftype_info = pbtools.get_one_line_output(["ftype", "Unreal.ProjectFile"])
+    if ftype_info is not None:
+        ftype_split = ftype_info.split('"')
+        if len(ftype_split) == 5:
+            return Path(ftype_split[1])
+    return None
 
 
 def run_unreal_setup():
@@ -654,6 +655,10 @@ def run_unreal_setup():
     pbtools.run([str(prereq_path), "/quiet"])
     pblog.info("Registering Unreal Engine file associations")
     selector_path = get_unreal_version_selector_path()
+    if not selector_path or not selector_path.exists():
+        pbtools.error_state(
+            f"UnrealVersionSelector not found. Please get support from {pbconfig.get('support_channel')}"
+        )
     cmdline = [selector_path, "/fileassociations"]
     pblog.info(
         "Requesting admin permission to register Unreal Engine file associations..."
@@ -689,9 +694,14 @@ def get_uproject_path():
 
 
 def generate_project_files():
+    selector_path = get_unreal_version_selector_path()
+    if not selector_path or not selector_path.exists():
+        pbtools.error_state(
+            f"UnrealVersionSelector not found. Please get support from {pbconfig.get('support_channel')}"
+        )
     pbtools.run(
         [
-            str(get_unreal_version_selector_path()),
+            str(),
             "/projectfiles",
             str(get_uproject_path()),
         ]
