@@ -14,10 +14,9 @@ from subprocess import CalledProcessError
 
 import psutil
 
-# PBSync Imports
 from pbpy import pbconfig, pbgit, pblog, pbuac, pbunreal
 
-error_file = ".pbsync_err"
+error_file = ".cliquesync_err"
 
 
 def handle_env(env):
@@ -406,7 +405,7 @@ def error_state(msg=None, fatal_error=False, hush=False, term=False):
                 [pbgit.get_git_executable(), "reflog", "-10"]
             ).stdout
         )
-        # This is a fatal error, so do not let user run PBSync until issue is fixed
+        # This is a fatal error, so do not let user run CliqueSync until issue is fixed
         if False:
             with open(error_file, "w") as error_state_file:
                 error_state_file.write("1")
@@ -504,7 +503,7 @@ def maintain_repo():
     # add in the front, so everything else can clean up after the fetch
     if is_shallow == "true":
         pblog.info(
-            "Shallow clone detected. PBSync will fill in history in the background."
+            "Shallow clone detected. CliqueSync will fill in history in the background."
         )
         commands.insert(0, f"{pbgit.get_git_executable()} fetch --unshallow")
     else:

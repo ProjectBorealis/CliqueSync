@@ -98,7 +98,7 @@ class ReleaseInstaller(GenericInstaller):
         )
 
     def install(self) -> bool:
-        directory = "Saved/PBSyncDownloads"
+        directory = "Saved/CliqueSync/Downloads"
         Path(directory).mkdir(parents=True, exist_ok=True)
 
         pblog.info(f"Downloading {self.spec.repo} {self.version_tag or 'latest'}...")

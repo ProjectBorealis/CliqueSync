@@ -24,7 +24,7 @@ try:
 except ImportError:
     from pbsync import pbsync_version
 
-default_config_name = "PBSync.xml"
+default_config_name = "CliqueSync.xml"
 
 
 def config_handler(config_var, config_parser_func):
@@ -41,8 +41,8 @@ def sync_handler(sync_val: str):
     sync_val = sync_val.lower()
 
     pblog.info(f"Executing {sync_val} sync command")
-    pblog.info(f"PBpy Library Version: {pbpy_version.ver}")
-    pblog.info(f"PBSync Program Version: {pbsync_version.ver}")
+    pblog.info(f"CliqueSync Program Version: {pbsync_version.ver}")
+    pblog.info(f"CliqueSync Utilities Version: {pbpy_version.ver}")
 
     sync_workflow = []
 
@@ -181,7 +181,7 @@ PUBLISHERS = {
         pbconfig.get("steamdrm_targetbinary"),
         (
             True
-            if os.getenv("PBSYNC_STEAMDRM_USECLOUD")
+            if os.getenv("CLIQUESYNC_STEAMDRM_USECLOUD")
             else pbconfig.get("steamdrm_useonprem")
         ),
     ),
@@ -213,12 +213,12 @@ def publish_handler(publish_val):
 
 def main(argv):
     parser = argparse.ArgumentParser(
-        description=f"PBSync | PBpy Library Version: {pbpy_version.ver} | PBSync Program Version: {pbsync_version.ver}"
+        description=f"CliqueSync | CliqueSync Program Version: {pbsync_version.ver} | CliqueSync Utilities Version: {pbpy_version.ver}"
     )
 
     parser.add_argument(
         "--sync",
-        help="Main command for the PBSync, synchronizes the project with latest changes from the repo, and does some housekeeping",
+        help="Main command for the CliqueSync, synchronizes the project with latest changes from the repo, and does some housekeeping",
         choices=[
             "all",
             "partial",
@@ -258,16 +258,16 @@ def main(argv):
     )
     parser.add_argument(
         "--publish",
-        help="Publishes a playable build with provided build type",
+        help="Publishes a playable build with the provided build type",
         const="default",
         nargs="?",
     )
     parser.add_argument(
-        "--debugpath", help="If provided, PBSync will run in provided path"
+        "--debugpath", help="If provided, CliqueSync will run in the provided path"
     )
     parser.add_argument(
         "--debugbranch",
-        help="If provided, PBSync will use provided branch as expected branch",
+        help="If provided, CliqueSync will use the provided branch as expected branch",
     )
 
     if len(argv) > 0:
@@ -283,7 +283,7 @@ def main(argv):
         # Work on provided debug path
         os.chdir(str(args.debugpath))
 
-    # Parser function object for PBSync config file
+    # Parser function object for CliqueSync config file
     def pbsync_config_parser_func(root):
         config_args_map = {
             # config key : xml location | forced override | default | is single
@@ -298,7 +298,7 @@ def main(argv):
             ),
             "git_url": ("git/url", None, None, True),
             "branches": ("git/branches/branch", None, ["main"], False),
-            "log_file_path": ("log/file", None, "pbsync_log.txt", True),
+            "log_file_path": ("log/file", None, "cliquesync_log.txt", True),
             "user_config": ("project/userconfig", None, ".user-sync", True),
             "ci_config": ("project/ciconfig", None, ".ci-sync", True),
             "uev_default_bundle": ("versionator/defaultbundle", None, "editor", True),
@@ -371,7 +371,7 @@ def main(argv):
     if pbtools.check_error_state():
         error_state(
             f"""Repository is currently in an error state. Please fix the issues in your workspace
-        before running PBSync.\nIf you have already fixed the problem, you may remove {pbtools.error_file} from your project folder and
+        before running CliqueSync.\nIf you have already fixed the problem, you may remove {pbtools.error_file} from your project folder and
         run UpdateProject again.""",
             True,
         )
@@ -401,7 +401,7 @@ def main(argv):
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()
-    if "Scripts" in os.getcwd():
-        # Working directory fix for scripts calling PBSync from Scripts folder
+    if "Script" in os.getcwd():
+        # Working directory fix for scripts calling CliqueSync from Script/Scripts folder
         os.chdir("..")
     main(sys.argv[1:])

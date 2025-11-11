@@ -27,7 +27,7 @@
         <cloud_storage>gcs</cloud_storage>
     </versionator>
     <log>
-        <file>pbsync_log.txt</file>
+        <file>cliquesync_log.txt</file>
     </log>
     <publish>
         <publisher>butler</publisher>

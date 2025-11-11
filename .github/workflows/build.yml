@@ -32,5 +32,5 @@ jobs:
           .\build.bat
       - uses: actions/upload-artifact@v3
         with:
-          name: PBSync.windows
-          path: dist/PBSync.exe
+          name: CliqueSync.windows
+          path: dist/CliqueSync.exe

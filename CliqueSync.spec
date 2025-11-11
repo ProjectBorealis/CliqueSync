@@ -27,7 +27,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     options,
-    name='PBSync',
+    name='CliqueSync',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

@@ -77,7 +77,12 @@ class MultiConfigParser(CustomConfigParser):
 
 class CustomInterpolation(configparser.BasicInterpolation):
     def before_get(
-        self, parser, section: configparser._SectionName, option: str, value: str, defaults: configparser._Section
+        self,
+        parser,
+        section: configparser._SectionName,
+        option: str,
+        value: str,
+        defaults: configparser._Section,
     ) -> str:
         val = super().before_get(parser, section, option, value, defaults)
         if get("is_ci"):
@@ -144,7 +149,7 @@ def generate_config(config_path, parser_func):
 
         # Add CI information
         config["is_ci"] = (
-            os.getenv("PBSYNC_CI") is not None or os.getenv("CI") is not None
+            os.getenv("CLIQUESYNC_CI") is not None or os.getenv("CI") is not None
         )
         config["checksum_file"] = ".checksum"
 

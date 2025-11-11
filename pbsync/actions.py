@@ -318,7 +318,7 @@ def launch_project():
                 launched_editor = False
                 if not pbunreal.check_ue_file_association():
                     pblog.warning(
-                        "PBSync failed to find a valid file association to launch the editor, attempting to resolve..."
+                        "CliqueSync failed to find a valid file association to launch the editor, attempting to resolve..."
                     )
                     pbunreal.run_unreal_setup()
                 if pbunreal.check_ue_file_association():
@@ -335,14 +335,14 @@ def launch_project():
 
                 if not launched_editor:
                     pblog.warning(
-                        f"PBSync failed to find a valid file association to launch the editor, and will attempt to launch the editor directly as a workaround."
+                        f"CliqueSync failed to find a valid file association to launch the editor, and will attempt to launch the editor directly as a workaround."
                     )
                     pbtools.run_non_blocking_ex([pbunreal.get_editor_path(), path])
                     pblog.warning(
-                        f"If PBSync failed to launch the directly directly, please launch {uproject_file} manually for now."
+                        f"If CliqueSync failed to launch the directly directly, please launch {uproject_file} manually for now."
                     )
                     pbtools.error_state(
-                        f"For a permanent fix, try clearing out file associations for the .uproject file type and launching PBSync again. Please get help in {pbconfig.get('support_channel')} if the issue continues."
+                        f"For a permanent fix, try clearing out file associations for the .uproject file type and launching CliqueSync again. Please get help in {pbconfig.get('support_channel')} if the issue continues."
                     )
 
         # TODO
