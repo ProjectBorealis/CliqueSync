@@ -935,7 +935,7 @@ def download_engine(bundle_name: str, download_symbols: bool):
                     f"Comparing target engine version {get_engine_version_with_prefix()} with local engine version {branch_version}"
                 )
 
-            if get_engine_version_with_prefix() == branch_version:
+            if not branch_version or get_engine_version_with_prefix() == branch_version:
                 # fast version
                 env = None
                 args = [
@@ -976,7 +976,7 @@ def download_engine(bundle_name: str, download_symbols: bool):
                     logfunc=pbtools.progress_stream_log,
                 )
             else:
-                # verify a new install
+                # verify a new version install
                 args = [
                     pbinfo.format_repo_folder(longtail_path),
                     "get",
