@@ -936,7 +936,9 @@ def download_engine(bundle_name: str, download_symbols: bool):
                                 "Custom S3 endpoint configured, but unable to parse from URI."
                             )
                             return
-                        args.extend(["--s3-endpoint-resolver-uri", endpoint])
+                        args.extend(
+                            ["--s3-endpoint-resolver-uri", f"https://{endpoint}"]
+                        )
                 elif cs == "gcs":
                     env = {"GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"}
                 proc = pbtools.run_stream(
@@ -968,7 +970,9 @@ def download_engine(bundle_name: str, download_symbols: bool):
                                 "Custom S3 endpoint configured, but unable to parse from URI."
                             )
                             return
-                        args.extend(["--s3-endpoint-resolver-uri", endpoint])
+                        args.extend(
+                            ["--s3-endpoint-resolver-uri", f"https://{endpoint}"]
+                        )
                 elif cs == "gcs":
                     env = {"GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"}
                 proc = pbtools.run_stream(
@@ -1544,6 +1548,7 @@ def build_installed_build():
                 f"{uri}lt/{bundle_name}/{version}.json",
                 "--compression-algorithm",
                 "zstd_max",
+                "--enable-file-mapping",
             ]
             env = None
             if cs == "s3":
@@ -1554,7 +1559,7 @@ def build_installed_build():
                             "Custom S3 endpoint configured, but unable to parse from URI."
                         )
                         return
-                    args.extend(["--s3-endpoint-resolver-uri", endpoint])
+                    args.extend(["--s3-endpoint-resolver-uri", f"https://{endpoint}"])
             elif cs == "gcs":
                 env = {
                     "GOOGLE_APPLICATION_CREDENTIALS": str(
