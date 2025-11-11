@@ -460,36 +460,58 @@ def clean_old_engine_installations(keep=1):
     return False
 
 
+def get_cloud_storage():
+    cs = pbconfig.get("cloud_storage")
+    if cs in ["gcs", "s3"]:
+        return cs
+    return False
+
+
 def get_prefixed_bucket_url(url: str | None) -> str | None:
     if not url:
         return None
-    if pbconfig.get("cloud_storage") == "gcs":
+    cs = get_cloud_storage()
+    if cs == "gcs":
         return f"gs://{url}/"
-    if pbconfig.get("cloud_storage") == "s3":
+    if cs == "s3":
         return f"s3://{url}/"
     return url
 
 
-def get_normalized_bucket(url: str | None) -> str | None:
+def get_normalized_bucket(url: str | None, host_only=False, s3=False) -> str | None:
     if not url:
         return None
     parsed = urlparse(url)
+    if not host_only and s3:
+        # s3 only takes a bucket name relative to the endpoint
+        if not parsed.path or parsed.path == "/":
+            return None
+        return parsed.path[1:]  # remove leading /
     if not parsed.hostname:
         return None
     bucket = parsed.hostname
-    if parsed.path and parsed.path != "/":
+    if not host_only and parsed.path and parsed.path != "/":
         bucket += parsed.path
     return bucket
 
 
+def is_custom_s3_uri(url: str) -> bool:
+    parsed = urlparse(url)
+    if not parsed.hostname:
+        return False
+    return not parsed.hostname.endswith("amazonaws.com")
+
+
 @lru_cache()
-def get_versionator_gs_base(fallback=None):
-    if pbconfig.get("cloud_storage"):
+def get_versionator_gs_base(fallback=None, host_only=False):
+    if get_cloud_storage():
         try:
             uev_config = configparser.ConfigParser()
             uev_config.read(".ueversionator")
             baseurl = uev_config.get("ueversionator", "baseurl", fallback=fallback)
-            return get_normalized_bucket(baseurl)
+            return get_normalized_bucket(
+                baseurl, host_only=host_only, s3=get_cloud_storage() == "s3"
+            )
         except Exception as e:
             pblog.exception(str(e))
     return None
@@ -503,7 +525,7 @@ def get_versionator_gsuri(fallback=None):
 
 @lru_cache
 def get_ddc_url(fallback=None, upload=False):
-    if pbconfig.get("cloud_storage"):
+    if get_cloud_storage():
         try:
             uev_config = configparser.ConfigParser()
             uev_config.read(".ueversionator")
@@ -702,6 +724,7 @@ def get_bundle():
 
 def download_engine(bundle_name: str, download_symbols: bool):
     version = get_engine_version_with_prefix()
+    cs = get_cloud_storage()
     legacy_archives = not uses_longtail()
 
     if version is None:
@@ -829,7 +852,12 @@ def download_engine(bundle_name: str, download_symbols: bool):
                         pbtools.error_state()
 
         # Extract with ueversionator
-        if (needs_exe or needs_symbols) and legacy_archives:
+        if legacy_archives and (needs_exe or needs_symbols):
+            if cs != "gcs":
+                pbtools.error_state(
+                    f"Legacy archive downloads only supported with GCS cloud storage. Please get support from {pbconfig.get('support_channel')}"
+                )
+                return
             command_set = [f"ueversionator{get_exe_ext()}"]
 
             command_set.append("-assume-valid")
@@ -860,9 +888,14 @@ def download_engine(bundle_name: str, download_symbols: bool):
 
             if pbtools.run(command_set).returncode != 0:
                 return False
-        else:
+        elif cs:
             ensure_ue_closed()
             gcs_bucket = get_versionator_gsuri()
+            if not gcs_bucket:
+                pbtools.error_state(
+                    f"Cloud storage bucket not configured. Please get support from {pbconfig.get("support_channel")}"
+                )
+                return
             # TODO: maybe cache out Saved and Intermediate folders?
             # current legacy archive behavior obviously doesn't keep them for new installs, but we could now
             # have to copy them out and then copy them back in
@@ -883,38 +916,64 @@ def download_engine(bundle_name: str, download_symbols: bool):
 
             if get_engine_version_with_prefix() == branch_version:
                 # fast version
+                env = None
+                args = [
+                    pbinfo.format_repo_folder(longtail_path),
+                    "get",
+                    "--source-path",
+                    f"{gcs_bucket}lt/{bundle_name}/{version}.json",
+                    "--target-path",
+                    str(base_path),
+                    "--cache-path",
+                    f"Saved/longtail/cache/{bundle_name}",
+                    "--enable-file-mapping",
+                ]
+                if cs == "s3":
+                    if is_custom_s3_uri(gcs_bucket):
+                        endpoint = get_versionator_gs_base(host_only=True)
+                        if endpoint is None:
+                            pbtools.error_state(
+                                "Custom S3 endpoint configured, but unable to parse from URI."
+                            )
+                            return
+                        args.extend(["--s3-endpoint-resolver-uri", endpoint])
+                elif cs == "gcs":
+                    env = {"GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"}
                 proc = pbtools.run_stream(
-                    [
-                        pbinfo.format_repo_folder(longtail_path),
-                        "get",
-                        "--source-path",
-                        f"{gcs_bucket}lt/{bundle_name}/{version}.json",
-                        "--target-path",
-                        str(base_path),
-                        "--cache-path",
-                        f"Saved/longtail/cache/{bundle_name}",
-                        "--enable-file-mapping",
-                    ],
-                    env={"GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"},
+                    args,
+                    env=env,
                     logfunc=pbtools.progress_stream_log,
                 )
             else:
                 # verify a new install
+                args = [
+                    pbinfo.format_repo_folder(longtail_path),
+                    "get",
+                    "--source-path",
+                    f"{gcs_bucket}lt/{bundle_name}/{version}.json",
+                    "--target-path",
+                    str(base_path),
+                    "--cache-path",
+                    f"Saved/longtail/cache/{bundle_name}",
+                    "--no-cache-target-index",
+                    "--validate",
+                    "--enable-file-mapping",
+                ]
+                env = None
+                if cs == "s3":
+                    if is_custom_s3_uri(gcs_bucket):
+                        endpoint = get_versionator_gs_base(host_only=True)
+                        if endpoint is None:
+                            pbtools.error_state(
+                                "Custom S3 endpoint configured, but unable to parse from URI."
+                            )
+                            return
+                        args.extend(["--s3-endpoint-resolver-uri", endpoint])
+                elif cs == "gcs":
+                    env = {"GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"}
                 proc = pbtools.run_stream(
-                    [
-                        pbinfo.format_repo_folder(longtail_path),
-                        "get",
-                        "--source-path",
-                        f"{gcs_bucket}lt/{bundle_name}/{version}.json",
-                        "--target-path",
-                        str(base_path),
-                        "--cache-path",
-                        f"Saved/longtail/cache/{bundle_name}",
-                        "--no-cache-target-index",
-                        "--validate",
-                        "--enable-file-mapping",
-                    ],
-                    env={"GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"},
+                    args,
+                    env=env,
                     logfunc=pbtools.progress_stream_log,
                 )
             # print out a newline
@@ -1055,7 +1114,7 @@ def is_ue_closed():
 def ensure_ue_closed():
     if not is_ue_closed():
         pbtools.error_state(
-            "Unreal Editor is currently running. Please close it before running PBSync. It may be listed only in Task Manager as a background process. As a last resort, you should log off and log in again."
+            "Unreal Editor is currently running. Please close it before running CliqueSync. It may be listed only in Task Manager as a background process. As a last resort, you should log off and log in again."
         )
 
 
@@ -1408,6 +1467,16 @@ def build_installed_build():
     with open(build_version_path) as f:
         build_version = json.load(f)
 
+    branch = pbtools.get_combined_output(
+        [pbgit.get_git_executable(), "-C", str(engine_path), "branch", "--show-current"]
+    )
+
+    branch_version = None
+    if branch.endswith("-main"):
+        # reconstruct a versioned branch name
+        major = build_version["MajorVersion"]
+        minor = build_version["MinorVersion"]
+        branch_version = f"{major}.{minor}-{branch.split("-main")[0].upper()}"
     changelist = build_version["Changelist"] + 1
     code_changelist = build_version["CompatibleChangelist"] + 1
 
@@ -1416,6 +1485,15 @@ def build_installed_build():
     local_build_archives = local_builds_path / "Archives"
     if local_build_archives.exists():
         shutil.rmtree(local_build_archives)
+
+    env = {
+        "IsBuildMachine": "1",
+        "CI": "1",
+        "uebp_CL": str(changelist),
+        "uebp_CodeCL": str(code_changelist),
+    }
+    if branch_version:
+        env["uebp_BaseBranch"] = branch_version
 
     # build the installed engine
     proc = pbtools.run_stream(
@@ -1434,12 +1512,7 @@ def build_installed_build():
             "-Set:WithFullDebugInfo=false",
             "-utf8output",
         ],
-        env={
-            "IsBuildMachine": "1",
-            "CI": "1",
-            "uebp_CL": str(changelist),
-            "uebp_CodeCL": str(code_changelist),
-        },
+        env=env,
         logfunc=lambda x: pbtools.checked_stream_log(
             x, error="Error: ", warning="Warning: "
         ),
@@ -1453,32 +1526,51 @@ def build_installed_build():
     # UE4 has a branch prefix, UE5 does not
     version = build_version["BranchName"].replace("++UE4+", "")
 
-    if pbconfig.get("cloud_storage"):
+    cs = get_cloud_storage()
+    if cs:
         if uses_longtail():
             bundle_name = pbconfig.get("uev_default_bundle")
             project_path = get_uproject_path().parent
-            proc = pbtools.run_stream(
-                [
-                    str(project_path / pbinfo.format_repo_folder(longtail_path)),
-                    "put",
-                    "--source-path",
-                    "Windows",
-                    "--target-path",
-                    f"{get_versionator_gsuri()}lt/{bundle_name}/{version}.json",
-                    "--compression-algorithm",
-                    "zstd_max",
-                ],
-                cwd=str(local_builds_path / "Engine"),
-                env={
+            uri = get_versionator_gsuri()
+            if not uri:
+                pbtools.error_state("No valid cloud storage URI configured.")
+                return
+            args = [
+                str(project_path / pbinfo.format_repo_folder(longtail_path)),
+                "put",
+                "--source-path",
+                "Windows",
+                "--target-path",
+                f"{uri}lt/{bundle_name}/{version}.json",
+                "--compression-algorithm",
+                "zstd_max",
+            ]
+            env = None
+            if cs == "s3":
+                if is_custom_s3_uri(uri):
+                    endpoint = get_versionator_gs_base(host_only=True)
+                    if endpoint is None:
+                        pbtools.error_state(
+                            "Custom S3 endpoint configured, but unable to parse from URI."
+                        )
+                        return
+                    args.extend(["--s3-endpoint-resolver-uri", endpoint])
+            elif cs == "gcs":
+                env = {
                     "GOOGLE_APPLICATION_CREDENTIALS": str(
                         project_path / "Build" / "credentials.json"
                     )
-                },
+                }
+            print(args)
+            proc = pbtools.run_stream(
+                args,
+                cwd=str(local_builds_path / "Engine"),
+                env=env,
                 logfunc=pbtools.progress_stream_log,
             )
             # print out a new line
             print("")
-        else:
+        elif cs == "gcs":
             proc = pbtools.run_stream(
                 [
                     "gsutil",
@@ -1499,9 +1591,15 @@ def build_installed_build():
                     download_dir.mkdir(parents=True)
                 for file in local_build_archives.glob("*.7z"):
                     shutil.copy(file, download_dir)
+        else:
+            pbtools.error_state("Legacy uploads not allowed for this cloud provider.")
 
         if proc.returncode:
             pbtools.error_state("Failed to upload installed engine.")
+    else:
+        pblog.warning(
+            "No cloud storage configured, skipping upload of installed build."
+        )
 
     if not set_engine_version(version):
         pbtools.error_state("Error while updating engine version in .uproject file")
