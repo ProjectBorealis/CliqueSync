@@ -939,6 +939,14 @@ def download_engine(bundle_name: str, download_symbols: bool):
                         args.extend(
                             ["--s3-endpoint-resolver-uri", f"https://{endpoint}"]
                         )
+                    with open("Build/s3.json") as f:
+                        s3_creds = json.load(f)
+                        env = {
+                            "AWS_ACCESS_KEY_ID": s3_creds["key"],
+                            "AWS_SECRET_ACCESS_KEY": s3_creds["secret"],
+                        }
+                        if "region" in s3_creds:
+                            env["AWS_REGION"] = s3_creds["region"]
                 elif cs == "gcs":
                     env = {"GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"}
                 proc = pbtools.run_stream(
@@ -973,6 +981,14 @@ def download_engine(bundle_name: str, download_symbols: bool):
                         args.extend(
                             ["--s3-endpoint-resolver-uri", f"https://{endpoint}"]
                         )
+                    with open("Build/s3.json") as f:
+                        s3_creds = json.load(f)
+                        env = {
+                            "AWS_ACCESS_KEY_ID": s3_creds["key"],
+                            "AWS_SECRET_ACCESS_KEY": s3_creds["secret"],
+                        }
+                        if "region" in s3_creds:
+                            env["AWS_REGION"] = s3_creds["region"]
                 elif cs == "gcs":
                     env = {"GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"}
                 proc = pbtools.run_stream(
@@ -1476,7 +1492,7 @@ def build_installed_build():
     )
 
     branch_version = None
-    if branch.endswith("-main"):
+    if "-main" in branch:
         # reconstruct a versioned branch name
         major = build_version["MajorVersion"]
         minor = build_version["MinorVersion"]
@@ -1560,13 +1576,20 @@ def build_installed_build():
                         )
                         return
                     args.extend(["--s3-endpoint-resolver-uri", f"https://{endpoint}"])
+                with open(project_path / "Build" / "s3.json") as f:
+                    s3_creds = json.load(f)
+                    env = {
+                        "AWS_ACCESS_KEY_ID": s3_creds["key"],
+                        "AWS_SECRET_ACCESS_KEY": s3_creds["secret"],
+                    }
+                    if "region" in s3_creds:
+                        env["AWS_REGION"] = s3_creds["region"]
             elif cs == "gcs":
                 env = {
                     "GOOGLE_APPLICATION_CREDENTIALS": str(
                         project_path / "Build" / "credentials.json"
                     )
                 }
-            print(args)
             proc = pbtools.run_stream(
                 args,
                 cwd=str(local_builds_path / "Engine"),
