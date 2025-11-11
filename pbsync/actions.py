@@ -300,16 +300,19 @@ def launch_project():
         else pbconfig.get_user("project", "launch", "editor")
     )
     if launch_pref == "vs":
+        pblog.info("Launching Visual Studio...")
         os.startfile(pbunreal.get_sln_path())
     elif launch_pref == "rider":
+        pblog.info("Launching Rider...")
         rider_bin = pbtools.get_one_line_output(["echo", "%Rider for Unreal Engine%"])
         rider_bin = rider_bin.replace(";", "")
         rider_bin = rider_bin.replace('"', "")
         pbtools.run_non_blocking(
             f'"{rider_bin}\\rider64.exe" "{str(pbunreal.get_sln_path().resolve())}"'
         )
-    elif pbunreal.is_ue_closed():
-        if launch_pref == "editor":
+    elif launch_pref == "editor":
+        if pbunreal.is_ue_closed():
+            pblog.info("Launching Unreal Editor...")
             uproject_file = pbunreal.get_uproject_name()
             path = str(Path(uproject_file).resolve())
 
@@ -349,8 +352,11 @@ def launch_project():
                     pbtools.error_state(
                         f"For a permanent fix, try clearing out file associations for the .uproject file type and launching CliqueSync again. Please get help in {pbconfig.get('support_channel')} if the issue continues."
                     )
-
-        # TODO
-        # elif launch_pref == "debug":
-        #    pbtools.run_non_blocking(f"\"{str(pbunreal.get_devenv_path())}\" \"{str(pbunreal.get_sln_path())}\" /DebugExe \"{str(pbunreal.get_editor_path())}\" \"{str(pbunreal.get_uproject_path())}\" -skipcompile")
+        else:
+            pblog.info("Unreal Editor is already running, skipping launch.")
+    # TODO
+    # elif launch_pref == "debug":
+    #    pbtools.run_non_blocking(f"\"{str(pbunreal.get_devenv_path())}\" \"{str(pbunreal.get_sln_path())}\" /DebugExe \"{str(pbunreal.get_editor_path())}\" \"{str(pbunreal.get_uproject_path())}\" -skipcompile")
+    else:
+        pblog.info("No launch action selected, skipping launch.")
     return True
