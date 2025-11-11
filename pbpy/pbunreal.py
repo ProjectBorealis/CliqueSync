@@ -636,13 +636,13 @@ def get_unreal_version_selector_path():
             f"Engine/Binaries/{get_platform_name()}/UnrealVersionSelector-{get_platform_name()}-Shipping{get_exe_ext()}"
         )
         if selector_path.exists():
-            return selector_path
+            return selector_path, True
     ftype_info = pbtools.get_one_line_output(["ftype", "Unreal.ProjectFile"])
     if ftype_info is not None:
         ftype_split = ftype_info.split('"')
         if len(ftype_split) == 5:
-            return Path(ftype_split[1])
-    return None
+            return Path(ftype_split[1]), False
+    return None, False
 
 
 def run_unreal_setup():
@@ -654,11 +654,13 @@ def run_unreal_setup():
     )
     pbtools.run([str(prereq_path), "/quiet"])
     pblog.info("Registering Unreal Engine file associations")
-    selector_path = get_unreal_version_selector_path()
+    selector_path, is_custom = get_unreal_version_selector_path()
     if not selector_path or not selector_path.exists():
         pbtools.error_state(
             f"UnrealVersionSelector not found. Please get support from {pbconfig.get('support_channel')}"
         )
+    if not is_custom:
+        return
     cmdline = [selector_path, "/fileassociations"]
     pblog.info(
         "Requesting admin permission to register Unreal Engine file associations..."
@@ -694,7 +696,7 @@ def get_uproject_path():
 
 
 def generate_project_files():
-    selector_path = get_unreal_version_selector_path()
+    selector_path, is_custom = get_unreal_version_selector_path()
     if not selector_path or not selector_path.exists():
         pbtools.error_state(
             f"UnrealVersionSelector not found. Please get support from {pbconfig.get('support_channel')}"
