@@ -5,6 +5,7 @@ from functools import lru_cache
 from xml.etree.ElementTree import parse
 
 from pbpy import pbtools
+from pbpy import pblog
 
 # Singleton Config and path to said config
 config = None
@@ -17,9 +18,36 @@ def get(key):
     if key is None or config is None or config.get(str(key)) is None:
         pbtools.error_state(f"Invalid config get request: {key}", hush=True)
     val = config.get(str(key))
-    if val == "":
+    # this should be checked by missing_keys in pbsync_config_parser_func, but checking here just in case
+    # TODO: remove?
+    if val is None:
         pbtools.error_state(f"{key} is not set in config", hush=True)
-
+    # We checked None values that distingiush something is a required key and must be set at startup
+    # now, we can check for empty values which we can translate into a None to represent an unset value
+    # this allows more flexibility in type handling for None values rather empty strings
+    if isinstance(val, str):
+        if val == "":
+            pblog.warning(f"{key} is not set in config")
+            # TODO: replace with None for type handling
+            #val = None
+        else:
+            # strip to allow for xml formatting
+            val = val.strip()
+    elif isinstance(val, list):
+        if len(val) < 1:
+            pblog.warning(f"{key} is not set in config")
+            # TODO: should we replace empty lists with None?
+            #val = None
+        else:
+            for idx in range(len(val)):
+                item = val[idx]
+                if val == "":
+                    pblog.warning(f"{key}[{idx}] is not set in config")
+                    # TODO: replace with None for type handling
+                    #val[idx] = None
+                else:
+                    # strip to allow for xml formatting
+                    val = val.strip()
     return val
 
 

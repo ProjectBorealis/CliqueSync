@@ -320,7 +320,7 @@ def main(argv):
             "uproject_name": ("project/uprojectname", None, None, True),
             "package_pdbs": ("project/packagepdbs", None, False, True),
             "repo_folder": ("project/repo_folder", None, "default", True),
-            "publish_publishers": ("publish/publisher", None, [""], False),
+            "publish_publishers": ("publish/publisher", None, [], False),
             "publish_stagedir": ("publish/stagedir", None, "Saved/StagedBuilds", True),
             "dispatch_config": ("dispatch/config", None, "", True),
             "butler_project": ("butler/project", None, "", True),
