@@ -299,7 +299,7 @@ def stash_pop():
         lower_case_output, "auto-merging", "conflict", "should have been pointers"
     ):
         pbtools.error_state(
-            f"git stash pop failed. Some of your stashed local changes would be overwritten by incoming changes. Request help in {pbconfig.get('support_channel')} to resolve conflicts, and please do not run UpdateProject until the issue is resolved.",
+            f"git stash pop failed. Some of your stashed local changes would be overwritten by incoming changes. Request help from {pbconfig.get('support_channel')} to resolve conflicts, and please do not run UpdateProject until the issue is resolved.",
             True,
         )
     elif "dropped refs" in lower_case_output:
@@ -308,7 +308,7 @@ def stash_pop():
         return
     else:
         pbtools.error_state(
-            f"git stash pop failed due to an unknown error. Request help in {pbconfig.get('support_channel')} to resolve possible conflicts, and please do not run UpdateProject until the issue is resolved.",
+            f"git stash pop failed due to an unknown error. Request help from {pbconfig.get('support_channel')} to resolve possible conflicts, and please do not run UpdateProject until the issue is resolved.",
             True,
         )
 
@@ -318,6 +318,8 @@ def check_remote_connection():
         [get_git_executable(), "remote", "get-url", "origin"]
     )
     recent_url = pbconfig.get("git_url")
+    if not recent_url:
+        raise ValueError("Git URL not set in config.")
     git_user = pbconfig.get_user("project", "git_user")
     if git_user:
         recent_url = recent_url.replace("https://", f"https://{git_user}@")

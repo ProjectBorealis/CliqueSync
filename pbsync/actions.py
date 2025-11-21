@@ -129,7 +129,7 @@ def git_ensure_clean():
                 pbgit.abort_all()
         else:
             pbtools.error_state(
-                f"You are in the middle of a rebase. Changes on one of your commits will be overridden by incoming changes. Please request help in {pbconfig.get('support_channel')} to resolve conflicts, and please do not run UpdateProject until the issue is resolved.",
+                f"You are in the middle of a rebase. Changes on one of your commits will be overridden by incoming changes. Please request help from {pbconfig.get('support_channel')} to resolve conflicts, and please do not run UpdateProject until the issue is resolved.",
                 fatal_error=True,
             )
             return False
@@ -175,7 +175,7 @@ def pull_binaries():
             pblog.info(f"Current project version: {project_version}")
     elif needs_binaries_pull:
         pbtools.error_state(
-            f"Something went wrong while fetching project version. Please request help in {pbconfig.get('support_channel')}."
+            f"Something went wrong while fetching project version. Please request help from {pbconfig.get('support_channel')}."
         )
 
     checksum_json_path = pbconfig.get("checksum_file")
@@ -194,7 +194,7 @@ def pull_binaries():
             )
         elif ret > 0:
             pbtools.error_state(
-                f"An error occurred while pulling binaries. Please request help in {pbconfig.get('support_channel')} to resolve it, and please do not run UpdateProject until the issue is resolved.",
+                f"An error occurred while pulling binaries. Please request help from {pbconfig.get('support_channel')} to resolve it, and please do not run UpdateProject until the issue is resolved.",
                 True,
             )
     else:
@@ -219,7 +219,7 @@ def ensure_project_file():
     uproject_file = pbunreal.get_uproject_name()
     if pbgit.sync_file(uproject_file) != 0:
         pbtools.error_state(
-            f"Something went wrong while updating the uproject file. Please request help in {pbconfig.get('support_channel')}."
+            f"Something went wrong while updating the uproject file. Please request help from {pbconfig.get('support_channel')}."
         )
     return True
 
@@ -258,7 +258,7 @@ def download_engine():
             )
         else:
             pbtools.error_state(
-                f"Something went wrong while registering engine build {bundle_name}-{engine_version}. Please request help in {pbconfig.get('support_channel')}."
+                f"Something went wrong while registering engine build {bundle_name}-{engine_version}. Please request help from {pbconfig.get('support_channel')}."
             )
 
         # Clean old engine installations
@@ -350,7 +350,7 @@ def launch_project():
                         f"If CliqueSync failed to launch the directly directly, please launch {uproject_file} manually for now."
                     )
                     pbtools.error_state(
-                        f"For a permanent fix, try clearing out file associations for the .uproject file type and launching CliqueSync again. Please get help in {pbconfig.get('support_channel')} if the issue continues."
+                        f"For a permanent fix, try clearing out file associations for the .uproject file type and launching CliqueSync again. Please get help from {pbconfig.get('support_channel')} if the issue continues."
                     )
         else:
             pblog.info("Unreal Editor is already running, skipping launch.")

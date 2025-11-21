@@ -17,7 +17,12 @@ binary_package_name = "Binaries.zip"
 
 @lru_cache()
 def get_token_var(git_url=None):
-    hostname = urlparse(git_url if git_url else pbconfig.get("git_url")).hostname
+    if not git_url:
+        git_url = pbconfig.get("git_url")
+    if git_url:
+        hostname = urlparse(git_url).hostname
+    else:
+        raise ValueError("Git URL not set in config.")
 
     if hostname == "github.com":
         return "GITHUB_TOKEN"
@@ -45,7 +50,12 @@ def get_token_env(repo=None):
 
 @lru_cache()
 def get_cli_executable(git_url=None):
-    hostname = urlparse(git_url if git_url else pbconfig.get("git_url")).hostname
+    if not git_url:
+        git_url = pbconfig.get("git_url")
+    if git_url:
+        hostname = urlparse(git_url).hostname
+    else:
+        raise ValueError("Git URL not set in config.")
 
     if hostname == "github.com":
         return pbinfo.format_repo_folder(gh_executable_path)
@@ -57,7 +67,9 @@ def get_cli_executable(git_url=None):
         return pbinfo.format_repo_folder(glab_executable_path)
 
 
-def download_release_file(version: str | None, pattern=None, directory=None, repo: str | None=None):
+def download_release_file(
+    version: str | None, pattern=None, directory=None, repo: str | None = None
+):
 
     cli_exec_path = get_cli_executable(repo)
 
@@ -137,7 +149,9 @@ def download_release_file(version: str | None, pattern=None, directory=None, rep
             return 1
     except Exception as e:
         pblog.exception(str(e))
-        pblog.error(f"Exception thrown while pulling release file {pattern} for {version}")
+        pblog.error(
+            f"Exception thrown while pulling release file {pattern} for {version}"
+        )
         return 1
 
     return 0

@@ -1033,7 +1033,7 @@ def download_engine(bundle_name: str, download_symbols: bool):
             print("")
             if proc.returncode:
                 pbtools.error_state(
-                    f"Failed to download engine update. Make sure your system time is synced. If this issue persists, please request help in {pbconfig.get('support_channel')}."
+                    f"Failed to download engine update. Make sure your system time is synced. If this issue persists, please request help from {pbconfig.get('support_channel')}."
                 )
             # TODO: similarly, have to copy PDBs out into a store so longtail doesn't touch the engine and delete everything but symbols
             if download_symbols:

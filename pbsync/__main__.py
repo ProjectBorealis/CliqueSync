@@ -317,7 +317,7 @@ def main(argv):
             "uev_default_bundle": ("versionator/defaultbundle", None, "editor", True),
             "uev_ci_bundle": ("versionator/cibundle", None, "engine", True),
             "engine_base_version": ("project/enginebaseversion", None, "", True),
-            "uproject_name": ("project/uprojectname", None, None, True),
+            "uproject_name": ("project/uprojectname", None, "", True),
             "package_pdbs": ("project/packagepdbs", None, False, True),
             "repo_folder": ("project/repo_folder", None, "default", True),
             "publish_publishers": ("publish/publisher", None, [], False),
@@ -340,7 +340,12 @@ def main(argv):
                 "https://github.com/ProjectBorealis/PBCore/wiki/Prerequisites",
                 True,
             ),
-            "support_channel": ("msg/support_channel", None, None, True),
+            "support_channel": (
+                "msg/support_channel",
+                None,
+                "your support contact",
+                True,
+            ),
         }
 
         missing_keys = []
@@ -378,8 +383,12 @@ def main(argv):
     uproject_name = pbconfig.get("uproject_name")
     if not uproject_name.endswith(".uproject"):
 
-        projects_folder = Path(uproject_name).resolve()
-        project_files = list(projects_folder.glob("*/*.uproject"))
+        if not uproject_name:
+            projects_folder = Path.cwd()
+            project_files = [list(projects_folder.glob("*.uproject"))[0]]
+        else:
+            projects_folder = Path(uproject_name).resolve()
+            project_files = list(projects_folder.glob("*/*.uproject"))
 
         if not project_files:
             error_state(
