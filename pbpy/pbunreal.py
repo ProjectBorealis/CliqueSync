@@ -532,6 +532,19 @@ def get_s3_endpoint_url():
 
 
 @lru_cache()
+def get_s3_credentials_env():
+    with open("Build/s3.json") as f:
+        s3_creds = json.load(f)
+        env = {
+            "AWS_ACCESS_KEY_ID": s3_creds["key"],
+            "AWS_SECRET_ACCESS_KEY": s3_creds["secret"],
+        }
+        if "region" in s3_creds:
+            env["AWS_REGION"] = s3_creds["region"]
+        return env
+
+
+@lru_cache()
 def get_versionator_gsuri(fallback=None):
     domain = get_versionator_gs_base(fallback)
     return get_prefixed_bucket_url(domain)
@@ -966,14 +979,7 @@ def download_engine(bundle_name: str, download_symbols: bool):
                             )
                             return
                         args.extend(["--s3-endpoint-resolver-uri", endpoint])
-                    with open("Build/s3.json") as f:
-                        s3_creds = json.load(f)
-                        env = {
-                            "AWS_ACCESS_KEY_ID": s3_creds["key"],
-                            "AWS_SECRET_ACCESS_KEY": s3_creds["secret"],
-                        }
-                        if "region" in s3_creds:
-                            env["AWS_REGION"] = s3_creds["region"]
+                    env = get_s3_credentials_env()
                 elif cs == "gcs":
                     env = {"GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"}
                 return env
@@ -1602,14 +1608,7 @@ def build_installed_build():
                         )
                         return
                     args.extend(["--s3-endpoint-resolver-uri", endpoint])
-                with open(project_path / "Build" / "s3.json") as f:
-                    s3_creds = json.load(f)
-                    env = {
-                        "AWS_ACCESS_KEY_ID": s3_creds["key"],
-                        "AWS_SECRET_ACCESS_KEY": s3_creds["secret"],
-                    }
-                    if "region" in s3_creds:
-                        env["AWS_REGION"] = s3_creds["region"]
+                env = get_s3_credentials_env()
             elif cs == "gcs":
                 env = {
                     "GOOGLE_APPLICATION_CREDENTIALS": str(
