@@ -314,7 +314,7 @@ def launch_project():
         if pbunreal.is_ue_closed():
             pblog.info("Launching Unreal Editor...")
             uproject_file = pbunreal.get_uproject_name()
-            path = str(Path(uproject_file).resolve())
+            path = str(pbunreal.get_uproject_path())
 
             extra_args = pbconfig.get_user("project", "editor_args", default="").split()
 

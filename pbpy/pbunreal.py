@@ -387,7 +387,7 @@ def generate_ddc_data():
                 err = pbtools.run(
                     [
                         str(ue_editor_executable),
-                        str(Path(get_uproject_name()).resolve()),
+                        str(get_uproject_path()),
                         "-run=DerivedDataCache",
                         "-fill",
                     ]
@@ -1306,7 +1306,7 @@ def build_shaders(platform: str = "PCD3D_SM6"):
     project_path = str(uproject_path.parent)
     args = [
         str(get_editor_path()),
-        str(get_uproject_path()),
+        str(uproject_path),
         "-run=ShaderPipelineCacheTools",
         "expand",
         f"{project_path}/Saved/StagedBuilds/Windows/{project_name}/Saved/CollectedPSOs/*.rec.upipelinecache",
@@ -1534,9 +1534,6 @@ def build_installed_build():
 
     # clean up old archives
     local_builds_path = engine_path / "LocalBuilds"
-    local_build_archives = local_builds_path / "Archives"
-    if local_build_archives.exists():
-        shutil.rmtree(local_build_archives)
 
     env = {
         "IsBuildMachine": "1",
@@ -1582,13 +1579,12 @@ def build_installed_build():
     if cs:
         if uses_longtail():
             bundle_name = pbconfig.get("uev_default_bundle")
-            project_path = get_uproject_path().parent
             uri = get_versionator_gsuri()
             if not uri:
                 pbtools.error_state("No valid cloud storage URI configured.")
                 return
             args = [
-                str(project_path / pbinfo.format_repo_folder(longtail_path)),
+                str(Path().resolve() / pbinfo.format_repo_folder(longtail_path)),
                 "put",
                 "--source-path",
                 "Windows",
@@ -1611,9 +1607,7 @@ def build_installed_build():
                 env = get_s3_credentials_env()
             elif cs == "gcs":
                 env = {
-                    "GOOGLE_APPLICATION_CREDENTIALS": str(
-                        project_path / "Build" / "credentials.json"
-                    )
+                    "GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"
                 }
             proc = pbtools.run_stream(
                 args,
@@ -1624,6 +1618,9 @@ def build_installed_build():
             # print out a new line
             print("")
         elif cs == "gcs":
+            local_build_archives = local_builds_path / "Archives"
+            if local_build_archives.exists():
+                shutil.rmtree(local_build_archives)
             proc = pbtools.run_stream(
                 [
                     "gsutil",
