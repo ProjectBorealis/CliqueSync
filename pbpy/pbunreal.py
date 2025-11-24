@@ -524,6 +524,14 @@ def get_versionator_gs_base(fallback=None, host_only=False):
 
 
 @lru_cache()
+def get_s3_endpoint_url():
+    endpoint = get_versionator_gs_base(host_only=True)
+    if endpoint:
+        return f"https://{endpoint}"
+    return None
+
+
+@lru_cache()
 def get_versionator_gsuri(fallback=None):
     domain = get_versionator_gs_base(fallback)
     return get_prefixed_bucket_url(domain)
@@ -947,31 +955,17 @@ def download_engine(bundle_name: str, download_symbols: bool):
                     f"Comparing target engine version {get_engine_version_with_prefix()} with local engine version {branch_version}"
                 )
 
-            if not branch_version or get_engine_version_with_prefix() == branch_version:
-                # fast version
+            def change_args(args: list[str]):
                 env = None
-                args = [
-                    pbinfo.format_repo_folder(longtail_path),
-                    "get",
-                    "--source-path",
-                    f"{gcs_bucket}lt/{bundle_name}/{version}.json",
-                    "--target-path",
-                    str(base_path),
-                    "--cache-path",
-                    f"Saved/longtail/cache/{bundle_name}",
-                    "--enable-file-mapping",
-                ]
                 if cs == "s3":
                     if is_custom_s3_uri(gcs_bucket):
-                        endpoint = get_versionator_gs_base(host_only=True)
+                        endpoint = get_s3_endpoint_url()
                         if endpoint is None:
                             pbtools.error_state(
                                 "Custom S3 endpoint configured, but unable to parse from URI."
                             )
                             return
-                        args.extend(
-                            ["--s3-endpoint-resolver-uri", f"https://{endpoint}"]
-                        )
+                        args.extend(["--s3-endpoint-resolver-uri", endpoint])
                     with open("Build/s3.json") as f:
                         s3_creds = json.load(f)
                         env = {
@@ -982,13 +976,11 @@ def download_engine(bundle_name: str, download_symbols: bool):
                             env["AWS_REGION"] = s3_creds["region"]
                 elif cs == "gcs":
                     env = {"GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"}
-                proc = pbtools.run_stream(
-                    args,
-                    env=env,
-                    logfunc=pbtools.progress_stream_log,
-                )
-            else:
+                return env
+
+            if branch_version and get_engine_version_with_prefix() != branch_version:
                 # verify a new version install
+                pblog.info("Version upgrade detected, ")
                 args = [
                     pbinfo.format_repo_folder(longtail_path),
                     "get",
@@ -1002,35 +994,36 @@ def download_engine(bundle_name: str, download_symbols: bool):
                     "--validate",
                     "--enable-file-mapping",
                 ]
-                env = None
-                if cs == "s3":
-                    if is_custom_s3_uri(gcs_bucket):
-                        endpoint = get_versionator_gs_base(host_only=True)
-                        if endpoint is None:
-                            pbtools.error_state(
-                                "Custom S3 endpoint configured, but unable to parse from URI."
-                            )
-                            return
-                        args.extend(
-                            ["--s3-endpoint-resolver-uri", f"https://{endpoint}"]
-                        )
-                    with open("Build/s3.json") as f:
-                        s3_creds = json.load(f)
-                        env = {
-                            "AWS_ACCESS_KEY_ID": s3_creds["key"],
-                            "AWS_SECRET_ACCESS_KEY": s3_creds["secret"],
-                        }
-                        if "region" in s3_creds:
-                            env["AWS_REGION"] = s3_creds["region"]
-                elif cs == "gcs":
-                    env = {"GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"}
+                env = change_args(args)
                 proc = pbtools.run_stream(
                     args,
                     env=env,
                     logfunc=pbtools.progress_stream_log,
                 )
+                # print out a newline
+                print("")
+
+            # fast, cached version. we always run this option so we fill in the cache.
+            args = [
+                pbinfo.format_repo_folder(longtail_path),
+                "get",
+                "--source-path",
+                f"{gcs_bucket}lt/{bundle_name}/{version}.json",
+                "--target-path",
+                str(base_path),
+                "--cache-path",
+                f"Saved/longtail/cache/{bundle_name}",
+                "--enable-file-mapping",
+            ]
+            env = change_args(args)
+            proc = pbtools.run_stream(
+                args,
+                env=env,
+                logfunc=pbtools.progress_stream_log,
+            )
             # print out a newline
             print("")
+
             if proc.returncode:
                 pbtools.error_state(
                     f"Failed to download engine update. Make sure your system time is synced. If this issue persists, please request help from {pbconfig.get('support_channel')}."
@@ -1602,13 +1595,13 @@ def build_installed_build():
             env = None
             if cs == "s3":
                 if is_custom_s3_uri(uri):
-                    endpoint = get_versionator_gs_base(host_only=True)
+                    endpoint = get_s3_endpoint_url()
                     if endpoint is None:
                         pbtools.error_state(
                             "Custom S3 endpoint configured, but unable to parse from URI."
                         )
                         return
-                    args.extend(["--s3-endpoint-resolver-uri", f"https://{endpoint}"])
+                    args.extend(["--s3-endpoint-resolver-uri", endpoint])
                 with open(project_path / "Build" / "s3.json") as f:
                     s3_creds = json.load(f)
                     env = {

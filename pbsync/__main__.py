@@ -282,6 +282,11 @@ def main(argv):
         "--debugbranch",
         help="If provided, CliqueSync will use the provided branch as expected branch",
     )
+    parser.add_argument(
+        "--uproject",
+        help=f"Multi-project folders only: project name to choose from. If not provided, it will prompt the user for one, or in CI environments, use the first one found.",
+        default="",
+    )
 
     if len(argv) > 0:
         args = parser.parse_args(argv)
@@ -382,7 +387,6 @@ def main(argv):
 
     uproject_name = pbconfig.get("uproject_name")
     if not uproject_name.endswith(".uproject"):
-
         if not uproject_name:
             projects_folder = Path.cwd()
             project_files = [list(projects_folder.glob("*.uproject"))[0]]
@@ -396,42 +400,63 @@ def main(argv):
             )
             return
 
-        print(
-            "========================================================================="
-        )
-        print(
-            "|        This is a multi-project directory.                             |"
-        )
-        print(
-            "|        You need to select the project you'd like to sync.             |"
-        )
-        print(
-            "=========================================================================\n"
-        )
-        print(f">>>>> Multi-project path: {projects_folder}\n")
-        print("Which project would you like to sync?\n")
+        should_select = not pbconfig.get("is_ci") and not args.uproject
+
+        if should_select:
+            print(
+                "========================================================================="
+            )
+            print(
+                "|        This is a multi-project directory.                             |"
+            )
+            print(
+                "|        You need to select the project you'd like to sync.             |"
+            )
+            print(
+                "=========================================================================\n"
+            )
+            print(f">>>>> Multi-project path: {projects_folder}\n")
+            print("Which project would you like to sync?\n")
 
         options = [file.stem for file in project_files]
-
-        for i, option in enumerate(options):
-            print(f"{i + 1}) {option}")
-
         uproject_file = None
-        while True:
-            response = input(f"\nSelect an option (1-{len(options)}) and press enter: ")
-            try:
-                choice = int(response) - 1
-                if choice >= 0 and choice < len(options):
-                    uproject_file = project_files[choice].relative_to(Path.cwd())
-                    print("")
-                    pblog.success(f"Syncing project {options[choice]}.")
-                    break
-            except ValueError:
-                print("\n")
+        
+        if should_select:
+            for i, option in enumerate(options):
+                print(f"{i + 1}) {option}")
+            while True:
+                response = input(
+                    f"\nSelect an option (1-{len(options)}) and press enter: "
+                )
+                try:
+                    choice = int(response) - 1
+                    if choice >= 0 and choice < len(options):
+                        uproject_file = project_files[choice]
+                        print("")
+                        break
+                except ValueError:
+                    print("\n")
 
-            pblog.error(f"Invalid option {response}. Try again:\n")
+                pblog.error(f"Invalid option {response}. Try again:\n")
+        else:
+            if args.uproject:
+                selected_project = args.uproject
+                try:
+                    uproject_file = project_files[options.index(selected_project)]
+                except ValueError:
+                    error_state(
+                        f"Could not find specified uproject '{selected_project}' in multi-project folder '{projects_folder}'"
+                    )
+                    return
+            else:
+                pblog.warning(
+                    "CI environment detected, defaulting to first project found"
+                )
+                uproject_file = project_files[0]
 
         if uproject_file:
+            uproject_file = uproject_file.relative_to(Path.cwd())
+            pblog.success(f"Syncing project {uproject_file}.")
             pbunreal.select_uproject_name(str(uproject_file))
 
     # Do not process further if we're in an error state
