@@ -792,7 +792,10 @@ def download_engine(bundle_name: str, download_symbols: bool):
         branch = pbtools.get_combined_output(
             [pbgit.get_git_executable(), "-C", str(root), "branch", "--show-current"]
         )
-        base_branch = get_engine_prefix()
+        if pbconfig.get("versioned_branch"):
+            base_branch = get_engine_prefix()
+        else:
+            base_branch = f"{get_engine_version_prefix()}-main".lower()
         if not branch.startswith(base_branch):
             pbtools.run(
                 [pbgit.get_git_executable(), "-C", str(root), "switch", base_branch]
@@ -986,7 +989,7 @@ def download_engine(bundle_name: str, download_symbols: bool):
 
             if branch_version and get_engine_version_with_prefix() != branch_version:
                 # verify a new version install
-                pblog.info("Version upgrade detected, ")
+                pblog.info("Version change detected, running full (slow) update with validation.")
                 args = [
                     pbinfo.format_repo_folder(longtail_path),
                     "get",
