@@ -16,6 +16,8 @@ colorama = "*"
 verboselogs = "*"
 crcmod = "*"
 tinyaes = "*"
+requests = "*"
+urllib3 = "*"
 pipenv = "*"
 pywin32 = {version = "*", sys_platform = "== 'win32'"}
 pefile = {version = "*", sys_platform = "== 'win32'"}

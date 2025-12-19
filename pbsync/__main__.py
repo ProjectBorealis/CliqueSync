@@ -2,7 +2,14 @@ import argparse
 import json
 import multiprocessing
 import os
+import os.path
+import platform
 import sys
+import shutil
+import subprocess
+import threading
+import time
+import webbrowser
 from functools import partial
 from pathlib import Path
 
@@ -12,6 +19,7 @@ from pbpy import (
     pbdispatch,
     pbgh,
     pbgit,
+    pbhttp,
     pblog,
     pbpy_version,
     pbsteamcmd,
@@ -28,6 +36,52 @@ except ImportError:
 
 default_config_name = "CliqueSync.xml"
 
+def check_gh_cli():
+    try:
+        result = subprocess.run(["gh", "--version"], capture_output=True, text=True, check=True)
+        pblog.info(result.stdout.strip())
+        return True
+    except FileNotFoundError:
+        return False
+
+def install_gh_cli():
+    pblog.info("GitHub CLI not found. Installing...")
+    gh_ver="2.63.0"
+    # Download GitHub CLI
+    match sys.platform:
+        case "win32":
+            url = f"https://github.com/cli/cli/releases/download/v{gh_ver}/gh_{gh_ver}_windows_amd64.msi"
+            downloaded_file = 'gh.msi'
+        case "darwin":
+            url = f"https://github.com/cli/cli/releases/download/v{gh_ver}/gh_{gh_ver}_macOS_universal.pkg"
+            downloaded_file = 'gh.pkg'
+        case _:
+            pblog.error("Your operation system is not supported")
+            return None
+
+    pbhttp.download(url)
+
+    # Install GitHub CLI
+    try:
+        match sys.platform:
+            case "win32": subprocess.run(['msiexec', '/i', downloaded_file, '/passive'], check=True)
+            case "darwin": subprocess.run(['sudo', 'installer', '-pkg', downloaded_file, '-target', '/'], check=True)
+    except subprocess.CalledProcessError as e:
+        pblog.error(f"Command failed with return code {e.returncode}")
+    
+    pblog.info("GitHub CLI installed.")
+    result = subprocess.run(['gh', '--version'], capture_output=True, text=True, check=True)
+    pblog.info(result.stdout.strip())
+    # Delete installation file
+    os.remove(downloaded_file)
+
+    try:
+        subprocess.run(['gh', 'auth', 'login'], check=True)
+    except:
+        pass
+
+if not check_gh_cli():
+    install_gh_cli()
 
 def config_handler(config_var, config_parser_func):
     if not pbconfig.generate_config(config_var, config_parser_func):
@@ -498,3 +552,4 @@ if __name__ == "__main__":
         # Working directory fix for scripts calling CliqueSync from Script/Scripts folder
         os.chdir("..")
     main(sys.argv[1:])
+
