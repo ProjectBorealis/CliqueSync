@@ -29,13 +29,13 @@ StringFileInfo(
   [
   StringTable(
     u'040904B0',
-    [StringStruct(u'CompanyName', u'Project Borealis'),
-    StringStruct(u'FileDescription', u'Project Borealis Workspace Synchronization Tool'),
+    [StringStruct(u'CompanyName', u'Icebreaker Industries'),
+    StringStruct(u'FileDescription', u'CliqueSync'),
     StringStruct(u'FileVersion', u'0.4.0'),
-    StringStruct(u'InternalName', u'pbsync'),
-    StringStruct(u'LegalCopyright', u'Copyright © Project Borealis'),
-    StringStruct(u'OriginalFilename', u'PBSync.exe'),
-    StringStruct(u'ProductName', u'PBSync'),
+    StringStruct(u'InternalName', u'cliquesync'),
+    StringStruct(u'LegalCopyright', u'Copyright © Icebreaker Industries'),
+    StringStruct(u'OriginalFilename', u'CliqueSync.exe'),
+    StringStruct(u'ProductName', u'CliqueSync'),
     StringStruct(u'ProductVersion', u'0.4.0')])
   ]), 
 VarFileInfo([VarStruct(u'Translation', [1033, 1200])])

@@ -1,17 +1,11 @@
-import os.path
 import os
+import os.path
 import shutil
-
-from zipfile import ZipFile
-from urllib.parse import urlparse
 from functools import lru_cache
+from urllib.parse import urlparse
+from zipfile import ZipFile
 
-from pbpy import pblog
-from pbpy import pbtools
-from pbpy import pbconfig
-from pbpy import pbgit
-from pbpy import pbunreal
-from pbpy import pbinfo
+from pbpy import pbconfig, pbgit, pbinfo, pblog, pbtools, pbunreal
 
 gh_executable_path = "\\git\\gh.exe"
 chglog_executable_path = "\\git\\git-chglog.exe"
@@ -23,7 +17,12 @@ binary_package_name = "Binaries.zip"
 
 @lru_cache()
 def get_token_var(git_url=None):
-    hostname = urlparse(git_url if git_url else pbconfig.get("git_url")).hostname
+    if not git_url:
+        git_url = pbconfig.get("git_url")
+    if git_url:
+        hostname = urlparse(git_url).hostname
+    else:
+        raise ValueError("Git URL not set in config.")
 
     if hostname == "github.com":
         return "GITHUB_TOKEN"
@@ -51,7 +50,12 @@ def get_token_env(repo=None):
 
 @lru_cache()
 def get_cli_executable(git_url=None):
-    hostname = urlparse(git_url if git_url else pbconfig.get("git_url")).hostname
+    if not git_url:
+        git_url = pbconfig.get("git_url")
+    if git_url:
+        hostname = urlparse(git_url).hostname
+    else:
+        raise ValueError("Git URL not set in config.")
 
     if hostname == "github.com":
         return pbinfo.format_repo_folder(gh_executable_path)
@@ -63,16 +67,20 @@ def get_cli_executable(git_url=None):
         return pbinfo.format_repo_folder(glab_executable_path)
 
 
-def download_release_file(version, pattern=None, directory=None, repo=None):
-    full_repo = repo
-    repo = urlparse(repo).path[1:]
-    cli_exec_path = get_cli_executable(full_repo)
+def download_release_file(
+    version: str | None, pattern=None, directory=None, repo: str | None = None
+):
+
+    cli_exec_path = get_cli_executable(repo)
 
     if not os.path.isfile(cli_exec_path):
         pblog.error(f"CLI executable not found at {cli_exec_path}")
         return 1
 
-    args = [cli_exec_path, "release", "download", version]
+    args = [cli_exec_path, "release", "download"]
+
+    if version:
+        args.append(version)
 
     if directory:
         args.extend(["-D", directory])
@@ -112,10 +120,11 @@ def download_release_file(version, pattern=None, directory=None, repo=None):
     else:
         pattern = "*"
 
-    if repo:
-        args.extend(["-R", repo])
+    creds = get_token_env(repo)
 
-    creds = get_token_env(full_repo)
+    if repo:
+        repo = urlparse(repo).path[1:]
+        args.extend(["-R", repo])
 
     try:
         proc = pbtools.run_with_combined_output(args, env=creds)
@@ -140,7 +149,9 @@ def download_release_file(version, pattern=None, directory=None, repo=None):
             return 1
     except Exception as e:
         pblog.exception(str(e))
-        pblog.error(f"Exception thrown while pulling release file {file} for {version}")
+        pblog.error(
+            f"Exception thrown while pulling release file {pattern} for {version}"
+        )
         return 1
 
     return 0
@@ -276,7 +287,7 @@ def generate_release():
     )
     pblog.info(proc.stdout)
     if not os.path.exists(pbinfo.format_repo_folder(chglog_executable_path)):
-        pbtools.error(
+        pblog.error(
             f"git-chglog executable not found at {pbinfo.format_repo_folder(chglog_executable_path)}"
         )
     proc = pbtools.run_with_combined_output(
@@ -300,7 +311,7 @@ def generate_release():
     else:
         creds = get_token_env()
     if not os.path.exists(cli_exec_path):
-        pbtools.error(f"CLI executable not found at {cli_exec_path}")
+        pblog.error(f"CLI executable not found at {cli_exec_path}")
 
     cmds = [
         cli_exec_path,

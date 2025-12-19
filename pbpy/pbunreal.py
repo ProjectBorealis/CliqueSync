@@ -23,7 +23,9 @@ uplugin_version_key = "VersionName"
 uproject_version_key = "EngineAssociation"
 project_version_key = "ProjectVersion="
 ddc_folder_name = "DerivedDataCache"
-uev_user_config = "ue4v-user"
+game_config = "Config/DefaultGame.ini"
+uev_user_config = "uev-user"
+
 
 engine_installation_folder_regex = [r"[0-9].[0-9]{2}.*-", r"-[0-9]{8}"]
 
@@ -97,13 +99,14 @@ def is_using_custom_version():
 @lru_cache()
 def get_latest_project_version():
     try:
-        with open(pbconfig.get("defaultgame_path")) as ini_file:
+        project_path = get_uproject_path().parent
+        game_config_path = project_path / game_config
+        with open(game_config_path) as ini_file:
             for ln in ini_file:
                 if ln.startswith(project_version_key):
                     return ln.replace(project_version_key, "").rstrip()
     except Exception as e:
         pblog.exception(str(e))
-        return None
     return None
 
 
@@ -121,7 +124,9 @@ def set_project_version(version_string, new_project_version):
     temp_path = "tmpProj.txt"
     # Create a temp file, do the changes there, and replace it with actual file
     try:
-        with open(pbconfig.get("defaultgame_path")) as ini_file:
+        project_path = get_uproject_path().parent
+        game_config_path = project_path / game_config
+        with open(game_config_path) as ini_file:
             with open(temp_path, "wt") as fout:
                 if new_project_version:
                     for ln in ini_file:
@@ -135,8 +140,8 @@ def set_project_version(version_string, new_project_version):
                             fout.write(f"{project_version_key}{version_string}\n")
                         else:
                             fout.write(ln)
-        os.remove(pbconfig.get("defaultgame_path"))
-        move(temp_path, pbconfig.get("defaultgame_path"))
+        os.remove(game_config_path)
+        move(temp_path, game_config_path)
     except Exception as e:
         pblog.exception(str(e))
         return False
@@ -147,7 +152,7 @@ def set_engine_version(version_string):
     temp_path = "tmpEng.txt"
     try:
         # Create a temp file, do the changes there, and replace it with actual file
-        with open(pbconfig.get("uproject_name")) as uproject_file:
+        with open(get_uproject_name()) as uproject_file:
             with open(temp_path, "wt") as fout:
                 for ln in uproject_file:
                     if uproject_version_key in ln:
@@ -156,8 +161,8 @@ def set_engine_version(version_string):
                         )
                     else:
                         fout.write(ln)
-        os.remove(pbconfig.get("uproject_name"))
-        move(temp_path, pbconfig.get("uproject_name"))
+        os.remove(get_uproject_name())
+        move(temp_path, get_uproject_name())
     except Exception as e:
         pblog.exception(str(e))
         return False
@@ -200,7 +205,7 @@ def get_engine_prefix() -> str:
 
 @lru_cache()
 def get_engine_association():
-    with open(pbconfig.get("uproject_name")) as uproject_file:
+    with open(get_uproject_name()) as uproject_file:
         data = json.load(uproject_file)
         engine_association = str(data[uproject_version_key])
         return engine_association
@@ -274,7 +279,7 @@ def get_engine_install_root(prompt=True) -> str | None:
         print(
             "=========================================================================\n"
         )
-        print(f">>>>> Project path: {curdir}\n")
+        print(f">>>>> Current path: {curdir}\n")
         print("Which directory should these engine downloads be stored in?\n")
 
         options = []
@@ -381,7 +386,7 @@ def generate_ddc_data():
                 err = pbtools.run(
                     [
                         str(ue_editor_executable),
-                        str(Path(pbconfig.get("uproject_name")).resolve()),
+                        str(get_uproject_path()),
                         "-run=DerivedDataCache",
                         "-fill",
                     ]
@@ -460,32 +465,93 @@ def clean_old_engine_installations(keep=1):
     return False
 
 
+def get_cloud_storage():
+    cs = pbconfig.get("cloud_storage")
+    if cs in ["gcs", "s3"]:
+        return cs
+    return False
+
+
+def get_prefixed_bucket_url(url: str | None) -> str | None:
+    if not url:
+        return None
+    cs = get_cloud_storage()
+    if cs == "gcs":
+        return f"gs://{url}/"
+    if cs == "s3":
+        return f"s3://{url}/"
+    return url
+
+
+def get_normalized_bucket(url: str | None, host_only=False, s3=False) -> str | None:
+    if not url:
+        return None
+    parsed = urlparse(url)
+    if not host_only and s3:
+        # s3 only takes a bucket name relative to the endpoint
+        if not parsed.path or parsed.path == "/":
+            return None
+        return parsed.path[1:]  # remove leading /
+    if not parsed.hostname:
+        return None
+    bucket = parsed.hostname
+    if not host_only and parsed.path and parsed.path != "/":
+        bucket += parsed.path
+    return bucket
+
+
+def is_custom_s3_uri(url: str) -> bool:
+    parsed = urlparse(url)
+    if not parsed.hostname:
+        return False
+    return not parsed.hostname.endswith("amazonaws.com")
+
+
 @lru_cache()
-def get_versionator_gs_base(fallback=None):
-    if pbconfig.get("uses_gcs") == "True":
+def get_versionator_gs_base(fallback=None, host_only=False):
+    if get_cloud_storage():
         try:
             uev_config = configparser.ConfigParser()
             uev_config.read(".ueversionator")
             baseurl = uev_config.get("ueversionator", "baseurl", fallback=fallback)
-            if baseurl:
-                domain = urlparse(baseurl).hostname
-                return domain
+            return get_normalized_bucket(
+                baseurl, host_only=host_only, s3=get_cloud_storage() == "s3"
+            )
         except Exception as e:
             pblog.exception(str(e))
     return None
 
 
 @lru_cache()
+def get_s3_endpoint_url():
+    endpoint = get_versionator_gs_base(host_only=True)
+    if endpoint:
+        return f"https://{endpoint}"
+    return None
+
+
+@lru_cache()
+def get_s3_credentials_env():
+    with open("Build/s3.json") as f:
+        s3_creds = json.load(f)
+        env = {
+            "AWS_ACCESS_KEY_ID": s3_creds["key"],
+            "AWS_SECRET_ACCESS_KEY": s3_creds["secret"],
+        }
+        if "region" in s3_creds:
+            env["AWS_REGION"] = s3_creds["region"]
+        return env
+
+
+@lru_cache()
 def get_versionator_gsuri(fallback=None):
     domain = get_versionator_gs_base(fallback)
-    if not domain:
-        return None
-    return f"gs://{domain}/"
+    return get_prefixed_bucket_url(domain)
 
 
 @lru_cache
 def get_ddc_url(fallback=None, upload=False):
-    if pbconfig.get("uses_gcs") == "True":
+    if get_cloud_storage():
         try:
             uev_config = configparser.ConfigParser()
             uev_config.read(".ueversionator")
@@ -501,18 +567,13 @@ def get_ddc_url(fallback=None, upload=False):
 @lru_cache()
 def get_ddc_bucket(fallback=None):
     baseurl = get_ddc_url(fallback=fallback)
-    if baseurl:
-        domain = urlparse(baseurl).hostname
-        return domain
-    return None
+    return get_normalized_bucket(baseurl)
 
 
 @lru_cache()
 def get_ddc_gsuri(fallback=None):
     bucket = get_ddc_bucket(fallback=fallback)
-    if bucket:
-        return f"gs://{bucket}/"
-    return None
+    return get_prefixed_bucket_url(bucket)
 
 
 @lru_cache()
@@ -589,18 +650,19 @@ def get_engine_base_path() -> Path | None:
 
 @lru_cache()
 def get_unreal_version_selector_path():
-    if get_engine_version() is None:
-        ftype_info = pbtools.get_one_line_output(["ftype", "Unreal.ProjectFile"])
-        if ftype_info is not None:
-            ftype_split = ftype_info.split('"')
-            if len(ftype_split) == 5:
-                return Path(ftype_split[1])
-        return None
-    else:
+    if get_engine_version():
         base_path = get_engine_base_path()
-        return base_path / Path(
+        selector_path = base_path / Path(
             f"Engine/Binaries/{get_platform_name()}/UnrealVersionSelector-{get_platform_name()}-Shipping{get_exe_ext()}"
         )
+        if selector_path.exists():
+            return selector_path, True
+    ftype_info = pbtools.get_one_line_output(["ftype", "Unreal.ProjectFile"])
+    if ftype_info is not None:
+        ftype_split = ftype_info.split('"')
+        if len(ftype_split) == 5:
+            return Path(ftype_split[1]), False
+    return None, False
 
 
 def run_unreal_setup():
@@ -612,7 +674,13 @@ def run_unreal_setup():
     )
     pbtools.run([str(prereq_path), "/quiet"])
     pblog.info("Registering Unreal Engine file associations")
-    selector_path = get_unreal_version_selector_path()
+    selector_path, is_custom = get_unreal_version_selector_path()
+    if not selector_path or not selector_path.exists():
+        pbtools.error_state(
+            f"UnrealVersionSelector not found. Please get support from {pbconfig.get('support_channel')}"
+        )
+    if not is_custom:
+        return
     cmdline = [selector_path, "/fileassociations"]
     pblog.info(
         "Requesting admin permission to register Unreal Engine file associations..."
@@ -627,15 +695,35 @@ def run_unreal_setup():
         pbtools.run(cmdline)
 
 
+selected_uproject: str | None = None
+
+
+@lru_cache()
+def get_uproject_name():
+    if selected_uproject:
+        return selected_uproject
+    return pbconfig.get("uproject_name")
+
+
+def select_uproject_name(uproject_file: str):
+    global selected_uproject
+    selected_uproject = uproject_file
+
+
 @lru_cache()
 def get_uproject_path():
-    return Path(pbconfig.get("uproject_name")).resolve()
+    return Path(get_uproject_name()).resolve()
 
 
 def generate_project_files():
+    selector_path, is_custom = get_unreal_version_selector_path()
+    if not selector_path or not selector_path.exists():
+        pbtools.error_state(
+            f"UnrealVersionSelector not found. Please get support from {pbconfig.get('support_channel')}"
+        )
     pbtools.run(
         [
-            str(get_unreal_version_selector_path()),
+            str(),
             "/projectfiles",
             str(get_uproject_path()),
         ]
@@ -687,8 +775,9 @@ def get_bundle():
     return bundle_name
 
 
-def download_engine(bundle_name=None, download_symbols=False):
+def download_engine(bundle_name: str, download_symbols: bool):
     version = get_engine_version_with_prefix()
+    cs = get_cloud_storage()
     legacy_archives = not uses_longtail()
 
     if version is None:
@@ -702,7 +791,10 @@ def download_engine(bundle_name=None, download_symbols=False):
         branch = pbtools.get_combined_output(
             [pbgit.get_git_executable(), "-C", str(root), "branch", "--show-current"]
         )
-        base_branch = get_engine_prefix()
+        if pbconfig.get("versioned_branch"):
+            base_branch = get_engine_prefix()
+        else:
+            base_branch = f"{get_engine_version_prefix()}-main".lower()
         if not branch.startswith(base_branch):
             pbtools.run(
                 [pbgit.get_git_executable(), "-C", str(root), "switch", base_branch]
@@ -815,80 +907,89 @@ def download_engine(bundle_name=None, download_symbols=False):
                         pblog.error(f"Required space: {must_free:.2f}GB")
                         pbtools.error_state()
 
-    # Extract with ueversionator
-    if (needs_exe or needs_symbols) and legacy_archives:
-        command_set = [f"ueversionator{get_exe_ext()}"]
+        # Extract with ueversionator
+        if legacy_archives and (needs_exe or needs_symbols):
+            if cs != "gcs":
+                pbtools.error_state(
+                    f"Legacy archive downloads only supported with GCS cloud storage. Please get support from {pbconfig.get('support_channel')}"
+                )
+                return
+            command_set = [f"ueversionator{get_exe_ext()}"]
 
-        command_set.append("-assume-valid")
-        command_set.append("-user-config")
-        command_set.append(pbconfig.get("user_config"))
+            command_set.append("-assume-valid")
+            command_set.append("-user-config")
+            command_set.append(pbconfig.get("user_config"))
 
-        if bundle_name is not None:
-            command_set.append("-bundle")
-            command_set.append(str(bundle_name))
+            if bundle_name is not None:
+                command_set.append("-bundle")
+                command_set.append(str(bundle_name))
 
-        if is_ue5():
-            command_set.append("-ue5")
-            command_set.append("-basedir")
-            command_set.append("ue5")
+            if is_ue5():
+                command_set.append("-ue5")
+                command_set.append("-basedir")
+                command_set.append("ue5")
 
-        if is_ci:
-            # If we're CI, write our environment variable to user config
-            user_config = pbconfig.get_user_config()
-            for section in user_config.sections():
-                for key in list(user_config[section].keys()):
-                    val = pbconfig.get_user(section, key)
-                    if val:
-                        user_config[section][key] = val
-                    else:
-                        user_config.remove_option(section, key)
-            with open(pbconfig.get("user_config"), "w") as user_config_file:
-                pbconfig.get_user_config().write(user_config_file)
+            if is_ci:
+                # If we're CI, write our environment variable to user config
+                user_config = pbconfig.get_user_config()
+                for section in user_config.sections():
+                    for key in list(user_config[section].keys()):
+                        val = pbconfig.get_user(section, key)
+                        if val:
+                            user_config[section][key] = val
+                        else:
+                            user_config.remove_option(section, key)
+                with open(pbconfig.get("user_config"), "w") as user_config_file:
+                    pbconfig.get_user_config().write(user_config_file)
 
-        if pbtools.run(command_set).returncode != 0:
-            return False
-    else:
-        ensure_ue_closed()
-        gcs_bucket = get_versionator_gsuri()
-        # TODO: maybe cache out Saved and Intermediate folders?
-        # current legacy archive behavior obviously doesn't keep them for new installs, but we could now
-        # have to copy them out and then copy them back in
+            if pbtools.run(command_set).returncode != 0:
+                return False
+        elif cs:
+            ensure_ue_closed()
+            gcs_bucket = get_versionator_gsuri()
+            if not gcs_bucket:
+                pbtools.error_state(
+                    f"Cloud storage bucket not configured. Please get support from {pbconfig.get("support_channel")}"
+                )
+                return
+            # TODO: maybe cache out Saved and Intermediate folders?
+            # current legacy archive behavior obviously doesn't keep them for new installs, but we could now
+            # have to copy them out and then copy them back in
 
-        # query build version so we can bump it up
-        build_version_path = base_path / "Engine" / "Build" / "Build.version"
+            # query build version so we can bump it up
+            build_version_path = base_path / "Engine" / "Build" / "Build.version"
 
-        branch_version = None
-        if build_version_path.exists():
-            with open(build_version_path) as f:
-                build_version = json.load(f)
-                branch_version = build_version.get("BranchName")
+            branch_version = None
+            if build_version_path.exists():
+                with open(build_version_path) as f:
+                    build_version = json.load(f)
+                    branch_version = build_version.get("BranchName")
 
-        if branch_version:
-            pblog.info(
-                f"Comparing target engine version {get_engine_version_with_prefix()} with local engine version {branch_version}"
-            )
+            if branch_version:
+                pblog.info(
+                    f"Comparing target engine version {get_engine_version_with_prefix()} with local engine version {branch_version}"
+                )
 
-        if get_engine_version_with_prefix() == branch_version:
-            # fast version
-            proc = pbtools.run_stream(
-                [
-                    pbinfo.format_repo_folder(longtail_path),
-                    "get",
-                    "--source-path",
-                    f"{gcs_bucket}lt/{bundle_name}/{version}.json",
-                    "--target-path",
-                    str(base_path),
-                    "--cache-path",
-                    f"Saved/longtail/cache/{bundle_name}",
-                    "--enable-file-mapping",
-                ],
-                env={"GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"},
-                logfunc=pbtools.progress_stream_log,
-            )
-        else:
-            # verify a new install
-            proc = pbtools.run_stream(
-                [
+            def change_args(args: list[str]):
+                env = None
+                if cs == "s3":
+                    if is_custom_s3_uri(gcs_bucket):
+                        endpoint = get_s3_endpoint_url()
+                        if endpoint is None:
+                            pbtools.error_state(
+                                "Custom S3 endpoint configured, but unable to parse from URI."
+                            )
+                            return
+                        args.extend(["--s3-endpoint-resolver-uri", endpoint])
+                    env = get_s3_credentials_env()
+                elif cs == "gcs":
+                    env = {"GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"}
+                return env
+
+            if branch_version and get_engine_version_with_prefix() != branch_version:
+                # verify a new version install
+                pblog.info("Version change detected, running full (slow) update with validation.")
+                args = [
                     pbinfo.format_repo_folder(longtail_path),
                     "get",
                     "--source-path",
@@ -900,30 +1001,55 @@ def download_engine(bundle_name=None, download_symbols=False):
                     "--no-cache-target-index",
                     "--validate",
                     "--enable-file-mapping",
-                ],
-                env={"GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"},
+                ]
+                env = change_args(args)
+                proc = pbtools.run_stream(
+                    args,
+                    env=env,
+                    logfunc=pbtools.progress_stream_log,
+                )
+                # print out a newline
+                print("")
+
+            # fast, cached version. we always run this option so we fill in the cache.
+            args = [
+                pbinfo.format_repo_folder(longtail_path),
+                "get",
+                "--source-path",
+                f"{gcs_bucket}lt/{bundle_name}/{version}.json",
+                "--target-path",
+                str(base_path),
+                "--cache-path",
+                f"Saved/longtail/cache/{bundle_name}",
+                "--enable-file-mapping",
+            ]
+            env = change_args(args)
+            proc = pbtools.run_stream(
+                args,
+                env=env,
                 logfunc=pbtools.progress_stream_log,
             )
-        # print out a newline
-        print("")
-        if proc.returncode:
-            pbtools.error_state(
-                f"Failed to download engine update. Make sure your system time is synced. If this issue persists, please request help in {pbconfig.get('support_channel')}."
-            )
-        # TODO: similarly, have to copy PDBs out into a store so longtail doesn't touch the engine and delete everything but symbols
-        if download_symbols:
-            pblog.warning(
-                "Symbols download not supported with incremental delivery at this time."
-            )
-        if not register_engine(engine_id, get_engine_base_path()):
-            needs_exe = False
+            # print out a newline
+            print("")
 
-    # if not CI, run the setup tasks
-    if root is not None and not is_ci and needs_exe:
-        run_unreal_setup()
-        # generate project files for developers
-        if not pbgit.is_on_expected_branch():
-            generate_project_files()
+            if proc.returncode:
+                pbtools.error_state(
+                    f"Failed to download engine update. Make sure your system time is synced. If this issue persists, please request help from {pbconfig.get('support_channel')}."
+                )
+            # TODO: similarly, have to copy PDBs out into a store so longtail doesn't touch the engine and delete everything but symbols
+            if download_symbols:
+                pblog.warning(
+                    "Symbols download not supported with incremental delivery at this time."
+                )
+            if not register_engine(engine_id, get_engine_base_path()):
+                needs_exe = False
+
+        # if not CI, run the setup tasks
+        if not is_ci and needs_exe:
+            run_unreal_setup()
+            # generate project files for developers
+            if not pbgit.is_on_expected_branch():
+                generate_project_files()
 
     return True
 
@@ -950,7 +1076,7 @@ def ue_config(path):
         interpolation=configparser.Interpolation(),
     )
     # case sensitive
-    config.optionxform = lambda option: option
+    config.optionxform = lambda optionstr: optionstr
     write_config = True
     if os.path.exists(path):
         try:
@@ -958,7 +1084,7 @@ def ue_config(path):
         except UnicodeDecodeError:
             try:
                 with open(path, "r", encoding="utf-16") as f:
-                    config.readfp(f)
+                    config.read_file(f)
             except Exception as e:
                 pblog.error(f"Unreal config parsing failed for {path}. Skipping.")
                 pblog.exception(str(e))
@@ -981,7 +1107,7 @@ def update_source_control():
         ] = "Git LFS 2"
         git_lfs_2 = source_control_config["GitSourceControl.GitSourceControlSettings"]
         binary_path = pbgit.get_git_executable()
-        if binary_path != "git":
+        if binary_path and binary_path != "git":
             git_lfs_2["BinaryPath"] = binary_path
         else:
             git_paths = [path for path in pbtools.whereis("git") if "cmd" in path.parts]
@@ -1042,7 +1168,7 @@ def is_ue_closed():
 def ensure_ue_closed():
     if not is_ue_closed():
         pbtools.error_state(
-            "Unreal Editor is currently running. Please close it before running PBSync. It may be listed only in Task Manager as a background process. As a last resort, you should log off and log in again."
+            "Unreal Editor is currently running. Please close it before running CliqueSync. It may be listed only in Task Manager as a background process. As a last resort, you should log off and log in again."
         )
 
 
@@ -1137,12 +1263,7 @@ def build_source(for_distribution=True):
     global use_source_dir
     engine_version = get_engine_version()
     if engine_version:
-        bundle_name = (
-            pbconfig.get("uev_ci_bundle")
-            if pbconfig.get("is_ci")
-            else pbconfig.get("uev_default_bundle")
-        )
-        bundle_name = pbconfig.get_user("project", "bundle", default=bundle_name)
+        bundle_name = get_bundle()
         symbols_needed = is_versionator_symbols_enabled()
         if for_distribution:
             use_source_dir = False
@@ -1187,7 +1308,7 @@ def build_shaders(platform: str = "PCD3D_SM6"):
     project_path = str(uproject_path.parent)
     args = [
         str(get_editor_path()),
-        str(get_uproject_path()),
+        str(uproject_path),
         "-run=ShaderPipelineCacheTools",
         "expand",
         f"{project_path}/Saved/StagedBuilds/Windows/{project_name}/Saved/CollectedPSOs/*.rec.upipelinecache",
@@ -1397,14 +1518,30 @@ def build_installed_build():
     with open(build_version_path) as f:
         build_version = json.load(f)
 
+    branch = pbtools.get_combined_output(
+        [pbgit.get_git_executable(), "-C", str(engine_path), "branch", "--show-current"]
+    )
+
+    branch_version = None
+    if "-main" in branch:
+        # reconstruct a versioned branch name
+        major = build_version["MajorVersion"]
+        minor = build_version["MinorVersion"]
+        branch_version = f"{major}.{minor}-{branch.split("-main")[0].upper()}"
     changelist = build_version["Changelist"] + 1
     code_changelist = build_version["CompatibleChangelist"] + 1
 
     # clean up old archives
     local_builds_path = engine_path / "LocalBuilds"
-    local_build_archives = local_builds_path / "Archives"
-    if local_build_archives.exists():
-        shutil.rmtree(local_build_archives)
+
+    env = {
+        "IsBuildMachine": "1",
+        "CI": "1",
+        "uebp_CL": str(changelist),
+        "uebp_CodeCL": str(code_changelist),
+    }
+    if branch_version:
+        env["uebp_BaseBranch"] = branch_version
 
     # build the installed engine
     proc = pbtools.run_stream(
@@ -1423,12 +1560,7 @@ def build_installed_build():
             "-Set:WithFullDebugInfo=false",
             "-utf8output",
         ],
-        env={
-            "IsBuildMachine": "1",
-            "CI": "1",
-            "uebp_CL": str(changelist),
-            "uebp_CodeCL": str(code_changelist),
-        },
+        env=env,
         logfunc=lambda x: pbtools.checked_stream_log(
             x, error="Error: ", warning="Warning: "
         ),
@@ -1442,32 +1574,52 @@ def build_installed_build():
     # UE4 has a branch prefix, UE5 does not
     version = build_version["BranchName"].replace("++UE4+", "")
 
-    if pbconfig.get("uses_gcs") == "True":
+    cs = get_cloud_storage()
+    if cs:
         if uses_longtail():
             bundle_name = pbconfig.get("uev_default_bundle")
-            project_path = get_uproject_path().parent
+            uri = get_versionator_gsuri()
+            if not uri:
+                pbtools.error_state("No valid cloud storage URI configured.")
+                return
+            args = [
+                str(Path().resolve() / pbinfo.format_repo_folder(longtail_path)),
+                "put",
+                "--source-path",
+                "Windows",
+                "--target-path",
+                f"{uri}lt/{bundle_name}/{version}.json",
+                "--compression-algorithm",
+                "zstd_max",
+                "--enable-file-mapping",
+            ]
+            env = None
+            if cs == "s3":
+                if is_custom_s3_uri(uri):
+                    endpoint = get_s3_endpoint_url()
+                    if endpoint is None:
+                        pbtools.error_state(
+                            "Custom S3 endpoint configured, but unable to parse from URI."
+                        )
+                        return
+                    args.extend(["--s3-endpoint-resolver-uri", endpoint])
+                env = get_s3_credentials_env()
+            elif cs == "gcs":
+                env = {
+                    "GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"
+                }
             proc = pbtools.run_stream(
-                [
-                    str(project_path / pbinfo.format_repo_folder(longtail_path)),
-                    "put",
-                    "--source-path",
-                    "Windows",
-                    "--target-path",
-                    f"{get_versionator_gsuri()}lt/{bundle_name}/{version}.json",
-                    "--compression-algorithm",
-                    "zstd_max",
-                ],
+                args,
                 cwd=str(local_builds_path / "Engine"),
-                env={
-                    "GOOGLE_APPLICATION_CREDENTIALS": str(
-                        project_path / "Build" / "credentials.json"
-                    )
-                },
+                env=env,
                 logfunc=pbtools.progress_stream_log,
             )
             # print out a new line
             print("")
-        else:
+        elif cs == "gcs":
+            local_build_archives = local_builds_path / "Archives"
+            if local_build_archives.exists():
+                shutil.rmtree(local_build_archives)
             proc = pbtools.run_stream(
                 [
                     "gsutil",
@@ -1488,9 +1640,15 @@ def build_installed_build():
                     download_dir.mkdir(parents=True)
                 for file in local_build_archives.glob("*.7z"):
                     shutil.copy(file, download_dir)
+        else:
+            pbtools.error_state("Legacy uploads not allowed for this cloud provider.")
 
         if proc.returncode:
             pbtools.error_state("Failed to upload installed engine.")
+    else:
+        pblog.warning(
+            "No cloud storage configured, skipping upload of installed build."
+        )
 
     if not set_engine_version(version):
         pbtools.error_state("Error while updating engine version in .uproject file")

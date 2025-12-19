@@ -14,13 +14,13 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v4
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v6
         with:
-          python-version: 3.12
+          python-version: 3.14
       - name: Dependencies
         run: |
           .\dependencies.bat
@@ -30,7 +30,7 @@ jobs:
       - name: Build
         run: |
           .\build.bat
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
-          name: PBSync.windows
-          path: dist/PBSync.exe
+          name: CliqueSync.windows
+          path: dist/CliqueSync.exe

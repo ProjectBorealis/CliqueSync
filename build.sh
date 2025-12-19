@@ -11,7 +11,7 @@ export PYI_STATIC_ZLIB=1
 export OBJECT_MODE=64
 pyinstaller --onefile \
             --additional-hooks-dir=hooks \
-            -n PBSync \
+            -n CliqueSync \
             --clean \
             --runtime-tmpdir Saved \
             --key cd17c3ab10dba6bd \

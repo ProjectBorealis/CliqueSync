@@ -8,46 +8,57 @@ from pbpy import pbtools
 from pbpy import pblog
 
 # Singleton Config and path to said config
-config = None
+config: dict[str, str | list[str] | bool] | None = None
 config_filepath = None
 
 user_config = None
 
 
-def get(key):
-    if key is None or config is None or config.get(str(key)) is None:
+def validated_get(key):
+    if key is None or config is None:
         pbtools.error_state(f"Invalid config get request: {key}", hush=True)
+        return None, False
     val = config.get(str(key))
     # this should be checked by missing_keys in pbsync_config_parser_func, but checking here just in case
     # TODO: remove?
     if val is None:
         pbtools.error_state(f"{key} is not set in config", hush=True)
+        return None, False
     # We checked None values that distingiush something is a required key and must be set at startup
     # now, we can check for empty values which we can translate into a None to represent an unset value
     # this allows more flexibility in type handling for None values rather empty strings
+    success = True
     if isinstance(val, str):
+        # strip to allow for xml formatting
+        val = val.strip()
         if val == "":
             pblog.warning(f"{key} is not set in config")
+            success = False
             # TODO: replace with None for type handling
-            #val = None
-        else:
-            # strip to allow for xml formatting
-            val = val.strip()
+            # val = None
     elif isinstance(val, list):
         if len(val) < 1:
             pblog.warning(f"{key} is not set in config")
+            success = False
             # TODO: should we replace empty lists with None?
-            #val = None
+            # val = None
         else:
+            success = False
             for idx in range(len(val)):
+                # strip to allow for xml formatting
+                val[idx] = val[idx].strip()
                 item = val[idx]
-                if val == "":
+                if item == "":
                     pblog.warning(f"{key}[{idx}] is not set in config")
                     # TODO: replace with None for type handling
-                    #val[idx] = None
+                    # val[idx] = None
                 else:
-                    # strip to allow for xml formatting
-                    val = val.strip()
+                    success = True
+    return val, success
+
+
+def get(key):
+    val, _ = validated_get(key)
     return val
 
 
@@ -105,11 +116,16 @@ class MultiConfigParser(CustomConfigParser):
 
 class CustomInterpolation(configparser.BasicInterpolation):
     def before_get(
-        self, parser, section: str, option: str, value: str, defaults
+        self,
+        parser,
+        section: configparser._SectionName,
+        option: str,
+        value: str,
+        defaults: configparser._Section,
     ) -> str:
         val = super().before_get(parser, section, option, value, defaults)
         if get("is_ci"):
-            return os.getenv(val)
+            return os.getenv(val) or ""
         return val
 
 
@@ -172,7 +188,7 @@ def generate_config(config_path, parser_func):
 
         # Add CI information
         config["is_ci"] = (
-            os.getenv("PBSYNC_CI") is not None or os.getenv("CI") is not None
+            os.getenv("CLIQUESYNC_CI") is not None or os.getenv("CI") is not None
         )
         config["checksum_file"] = ".checksum"
 

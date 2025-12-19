@@ -123,7 +123,7 @@ def get_gcm_version():
     if gcm_exec is None:
         return missing_version
     if gcm_exec[0].startswith("diff"):
-        return gcm_exec
+        return gcm_exec[0]
     installed_version = pbtools.get_one_line_output([*gcm_exec, "--version"])
 
     if installed_version == "":
@@ -202,8 +202,12 @@ def fix_lfs_ro_attr(should_unlock_unmodified):
         unlock_unmodified()
     lockables = get_lockables()
     locked = get_locked()
+    if locked is None:
+        pblog.error("Failed to get locked files from git-lfs, skipping lock cleanup.")
+        return
     not_locked = lockables - locked
-    with multiprocessing.Pool(min(8, os.cpu_count())) as pool:
+    cpus = os.cpu_count() or 1
+    with multiprocessing.Pool(min(8, cpus)) as pool:
         for message in itertools.chain(
             pool.imap_unordered(read_only, not_locked, 100),
             pool.imap_unordered(read_write, locked),
@@ -226,6 +230,9 @@ def unlock_unmodified():
     pending = {line.rsplit(" => ", 1)[1] for line in pending if line}
     keep = modified | pending
     locked = get_locked()
+    if locked is None:
+        pblog.error("Failed to get locked files from git-lfs, skipping lock cleanup.")
+        return
     unlock = {file for file in locked if file not in keep}
     prefix_filter = []
     for path in modified:
@@ -292,7 +299,7 @@ def stash_pop():
         lower_case_output, "auto-merging", "conflict", "should have been pointers"
     ):
         pbtools.error_state(
-            f"git stash pop failed. Some of your stashed local changes would be overwritten by incoming changes. Request help in {pbconfig.get('support_channel')} to resolve conflicts, and please do not run UpdateProject until the issue is resolved.",
+            f"git stash pop failed. Some of your stashed local changes would be overwritten by incoming changes. Request help from {pbconfig.get('support_channel')} to resolve conflicts, and please do not run UpdateProject until the issue is resolved.",
             True,
         )
     elif "dropped refs" in lower_case_output:
@@ -301,7 +308,7 @@ def stash_pop():
         return
     else:
         pbtools.error_state(
-            f"git stash pop failed due to an unknown error. Request help in {pbconfig.get('support_channel')} to resolve possible conflicts, and please do not run UpdateProject until the issue is resolved.",
+            f"git stash pop failed due to an unknown error. Request help from {pbconfig.get('support_channel')} to resolve possible conflicts, and please do not run UpdateProject until the issue is resolved.",
             True,
         )
 
@@ -311,6 +318,8 @@ def check_remote_connection():
         [get_git_executable(), "remote", "get-url", "origin"]
     )
     recent_url = pbconfig.get("git_url")
+    if not recent_url:
+        raise ValueError("Git URL not set in config.")
     git_user = pbconfig.get_user("project", "git_user")
     if git_user:
         recent_url = recent_url.replace("https://", f"https://{git_user}@")
@@ -376,6 +385,9 @@ def setup_config():
 
 @lru_cache()
 def get_credentials(repo_str=None):
+    gcm_bin = get_gcm_executable()
+    if gcm_bin is None:
+        return (None, None)
     if not repo_str:
         repo_str = pbtools.get_one_line_output(
             [get_git_executable(), "remote", "get-url", "origin"]
@@ -388,7 +400,7 @@ def get_credentials(repo_str=None):
         creds += f"username={repo_url.username}\n"
     creds += "\n"
 
-    proc = pbtools.run_with_stdin([*get_gcm_executable(), "get"], input=creds)
+    proc = pbtools.run_with_stdin([*gcm_bin, "get"], input=creds)
 
     if proc.returncode != 0:
         return (None, None)
@@ -404,7 +416,7 @@ def get_credentials(repo_str=None):
 
     # force reauthentication
     if cred_dict.get("username") == "PersonalAccessToken":
-        proc = pbtools.run_with_stdin([*get_gcm_executable(), "erase"], input=creds)
+        proc = pbtools.run_with_stdin([*gcm_bin, "erase"], input=creds)
         check_remote_connection()
 
     return cred_dict.get("username"), cred_dict.get("password")

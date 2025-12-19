@@ -3,7 +3,7 @@
     "inputs": [
         {
             "id": "debugPath",
-            "description": "Please enter working directory for PBSync",
+            "description": "Please enter working directory for CliqueSync",
             "default": "C:\\src\\pb",
             "type": "promptString"
         },
@@ -23,21 +23,31 @@
             "id": "printSelection",
             "description": "Please choose what do you want to print",
             "default": "current-engine",
-            "options": ["current-engine", "project"],
+            "options": [
+                "current-engine",
+                "project"
+            ],
             "type": "pickString"
         },
         {
             "id": "autoversionSelection",
             "description": "Please choose version increase type",
             "default": "patch",
-            "options": ["patch", "minor", "major"],
+            "options": [
+                "patch",
+                "minor",
+                "major"
+            ],
             "type": "pickString"
         },
         {
             "id": "publishSelection",
             "description": "Please choose build type to publish",
             "default": "internal",
-            "options": ["internal", "playtester"],
+            "options": [
+                "internal",
+                "playtester"
+            ],
             "type": "pickString"
         },
         {
@@ -55,7 +65,9 @@
     "configurations": [
         {
             "name": "Print help",
-            "args": ["--help"],
+            "args": [
+                "--help"
+            ],
             "type": "python",
             "request": "launch",
             "module": "pbsync",
@@ -63,7 +75,14 @@
         },
         {
             "name": "Sync All",
-            "args": ["--sync", "all", "--debugpath", "${input:debugPath}", "--debugbranch", "${input:debugBranch}"],
+            "args": [
+                "--sync",
+                "all",
+                "--debugpath",
+                "${input:debugPath}",
+                "--debugbranch",
+                "${input:debugBranch}"
+            ],
             "type": "python",
             "justMyCode": false,
             "request": "launch",
@@ -72,7 +91,12 @@
         },
         {
             "name": "Pull Binaries",
-            "args": ["--sync", "binaries", "--debugpath", "${input:debugPath}"],
+            "args": [
+                "--sync",
+                "binaries",
+                "--debugpath",
+                "${input:debugPath}"
+            ],
             "type": "python",
             "request": "launch",
             "module": "pbsync",
@@ -80,7 +104,12 @@
         },
         {
             "name": "Pull Engine Build",
-            "args": ["--sync", "engine", "--debugpath", "${input:debugPath}"],
+            "args": [
+                "--sync",
+                "engine",
+                "--debugpath",
+                "${input:debugPath}"
+            ],
             "type": "python",
             "justMyCode": false,
             "request": "launch",
@@ -102,7 +131,12 @@
         },
         {
             "name": "Upload Cloud DDC",
-            "args": ["--build", "s3ddc", "--debugpath", "${input:debugPath}"],
+            "args": [
+                "--build",
+                "s3ddc",
+                "--debugpath",
+                "${input:debugPath}"
+            ],
             "type": "python",
             "request": "launch",
             "module": "pbsync",
@@ -110,7 +144,12 @@
         },
         {
             "name": "Build Source",
-            "args": ["--build", "source", "--debugpath", "${input:debugPath}"],
+            "args": [
+                "--build",
+                "source",
+                "--debugpath",
+                "${input:debugPath}"
+            ],
             "type": "python",
             "request": "launch",
             "module": "pbsync",
@@ -118,7 +157,12 @@
         },
         {
             "name": "Build Release",
-            "args": ["--build", "release", "--debugpath", "${input:debugPath}"],
+            "args": [
+                "--build",
+                "release",
+                "--debugpath",
+                "${input:debugPath}"
+            ],
             "type": "python",
             "request": "launch",
             "module": "pbsync",
@@ -139,7 +183,12 @@
         },
         {
             "name": "Build Installed Engine",
-            "args": ["--build", "installedbuild", "--debugpath", "${input:debugPath}"],
+            "args": [
+                "--build",
+                "installedbuild",
+                "--debugpath",
+                "${input:debugPath}"
+            ],
             "type": "python",
             "request": "launch",
             "module": "pbsync",
@@ -147,7 +196,12 @@
         },
         {
             "name": "Inspect Code",
-            "args": ["--build", "inspect", "--debugpath", "${input:debugPath}"],
+            "args": [
+                "--build",
+                "inspect",
+                "--debugpath",
+                "${input:debugPath}"
+            ],
             "type": "python",
             "request": "launch",
             "module": "pbsync",
@@ -155,7 +209,12 @@
         },
         {
             "name": "Print Information",
-            "args": ["--printversion", "${input:printSelection}", "--debugpath", "${input:debugPath}"],
+            "args": [
+                "--printversion",
+                "${input:printSelection}",
+                "--debugpath",
+                "${input:debugPath}"
+            ],
             "type": "python",
             "request": "launch",
             "module": "pbsync",
@@ -163,7 +222,12 @@
         },
         {
             "name": "Project Version Update",
-            "args": ["--autoversion", "${input:autoversionSelection}", "--debugpath", "${input:debugPath}"],
+            "args": [
+                "--autoversion",
+                "${input:autoversionSelection}",
+                "--debugpath",
+                "${input:debugPath}"
+            ],
             "type": "python",
             "request": "launch",
             "module": "pbsync",
@@ -171,7 +235,11 @@
         },
         {
             "name": "Publish",
-            "args": ["--publish", "--debugpath", "${input:debugPath}"],
+            "args": [
+                "--publish",
+                "--debugpath",
+                "${input:debugPath}"
+            ],
             "type": "python",
             "request": "launch",
             "module": "pbsync",
@@ -183,7 +251,14 @@
         },
         {
             "name": "Migrate Assets",
-            "args": ["--migrate", "${input:commit}", "--migrate_glob", "${input:glob}", "--debugpath", "${input:debugPath}"],
+            "args": [
+                "--migrate",
+                "${input:commit}",
+                "--migrate_glob",
+                "${input:glob}",
+                "--debugpath",
+                "${input:debugPath}"
+            ],
             "type": "python",
             "request": "launch",
             "module": "pbsync",

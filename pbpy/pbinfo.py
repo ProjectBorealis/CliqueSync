@@ -6,7 +6,15 @@ from pbpy import pbconfig
 
 @lru_cache()
 def get_repo_folder():
-    hostname = urlparse(pbconfig.get("git_url")).hostname
+    repo_folder = pbconfig.get("repo_folder")
+    if repo_folder and repo_folder != "default":
+        return repo_folder
+
+    git_url = pbconfig.get("git_url")
+    if not git_url:
+        return "Tools"
+
+    hostname = urlparse(git_url).hostname
 
     if hostname == "github.com":
         return ".github"
