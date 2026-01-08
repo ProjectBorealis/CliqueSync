@@ -989,7 +989,9 @@ def download_engine(bundle_name: str, download_symbols: bool):
 
             if branch_version and get_engine_version_with_prefix() != branch_version:
                 # verify a new version install
-                pblog.info("Version change detected, running full (slow) update with validation.")
+                pblog.info(
+                    "Version change detected, running full (slow) update with validation."
+                )
                 args = [
                     pbinfo.format_repo_folder(longtail_path),
                     "get",
@@ -1355,7 +1357,9 @@ def build_game(configuration="Shipping"):
     ]
     publishers = pbconfig.get("publish_publishers")
     if "steamcmd" in publishers:
-        args.extend(["-patchpaddingalign=1048576", "-blocksize=1048576"])
+        args.extend(
+            ['-AdditionalPakOptions="-patchpaddingalign=1048576 -blocksize=1048576"']
+        )
     proc = pbtools.run_stream(
         args,
         logfunc=lambda x: pbtools.checked_stream_log(
@@ -1609,9 +1613,7 @@ def build_installed_build():
                     args.extend(["--s3-endpoint-resolver-uri", endpoint])
                 env = get_s3_credentials_env()
             elif cs == "gcs":
-                env = {
-                    "GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"
-                }
+                env = {"GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"}
             proc = pbtools.run_stream(
                 args,
                 cwd=str(local_builds_path / "Engine"),
