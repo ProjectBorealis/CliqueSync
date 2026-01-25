@@ -362,6 +362,7 @@ def uses_longtail():
 
 def check_ue_file_association():
     if os.name == "nt":
+        # todo: do we need a replacement for this?
         file_assoc_result = pbtools.get_combined_output(["assoc", uproject_ext])
         return "Unreal.ProjectFile" in file_assoc_result
     else:
@@ -659,6 +660,7 @@ def get_unreal_version_selector_path():
         )
         if selector_path.exists():
             return selector_path, True
+    # todo: do we need a replacement for this?
     ftype_info = pbtools.get_one_line_output(["ftype", "Unreal.ProjectFile"])
     if ftype_info is not None:
         ftype_split = ftype_info.split('"')
@@ -1221,6 +1223,7 @@ def get_sln_path():
 
 @lru_cache()
 def get_vs_basepath():
+    # todo: do we need a replacement for this?
     return pbtools.get_one_line_output(
         [
             "%ProgramFiles(x86)%\\Microsoft Visual Studio\\Installer\\vswhere.exe",

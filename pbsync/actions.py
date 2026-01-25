@@ -6,7 +6,6 @@ from pathlib import Path
 from pbpy import pbconfig, pbgh, pbgit, pblog, pbtools, pbunreal
 from pbsync import prereqs
 
-
 actions = {}
 action_pairs = {}
 active_pairs = {}
@@ -304,6 +303,7 @@ def launch_project():
         os.startfile(pbunreal.get_sln_path())
     elif launch_pref == "rider":
         pblog.info("Launching Rider...")
+        # todo: do we need a replacement for this?
         rider_bin = pbtools.get_one_line_output(["echo", "%Rider for Unreal Engine%"])
         rider_bin = rider_bin.replace(";", "")
         rider_bin = rider_bin.replace('"', "")

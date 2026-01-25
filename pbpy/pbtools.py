@@ -240,6 +240,7 @@ def it_has_all(it, *args):
 def whereis(app):
     result = None
 
+    # todo: do we need a replacement for this?
     command = "where"
     if os.name != "nt":
         command = "which"
@@ -468,11 +469,24 @@ def maintain_repo():
 
     if os.name == "nt" and pbgit.get_git_executable() == "git":
         proc = run_with_combined_output(
-            ["schtasks" "/query", "/TN", "Git for Windows Updater"]
+            [
+                "powershell",
+                "-Command",
+                "Get-ScheduledTask",
+                "-TaskName",
+                '"Git for Windows Updater"',
+            ]
         )
         # if exists
         if proc.returncode == 0:
-            cmdline = ["schtasks", "/delete", "/F", "/TN", '"Git for Windows Updater"']
+            cmdline = [
+                "powershell",
+                "-Command",
+                "Unregister-ScheduledTask",
+                "-TaskName",
+                '"Git for Windows Updater"',
+                "-Confirm:$false",
+            ]
             pblog.info(
                 "Requesting admin permission to delete the Git for Windows Updater..."
             )
@@ -492,9 +506,9 @@ def maintain_repo():
         == "hourly"
     )
     if not does_maintainence:
-        commands.insert(0, f"scalar register .")
+        commands.insert(0, "scalar register .")
     else:
-        commands.insert(0, f"scalar reconfigure .")
+        commands.insert(0, "scalar reconfigure .")
 
     # fill in the git repo optionally
     is_shallow = get_one_line_output(
