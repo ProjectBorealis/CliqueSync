@@ -8,8 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Sequence
 
+from pbpy import pbconfig, pbgh, pbgit, pblog, pbtools, pbuac
 from pbpy.platform import PlatformSpecificLazyValue, PlatformSpecificValue
-from pbpy import pblog, pbtools, pbconfig, pbgh, pbgit, pbuac
 
 
 class GenericInstaller:
@@ -57,6 +57,11 @@ class ReleaseInstaller(GenericInstaller):
                 repo=repo_url,
             )
             if res == 0:
+                if "*" in pat:
+                    for path in Path(directory).glob(pat):
+                        if path.is_file():
+                            return path
+                    return None
                 return Path(directory) / pat
         return None
 

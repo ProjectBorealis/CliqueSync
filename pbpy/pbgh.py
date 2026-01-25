@@ -70,7 +70,6 @@ def get_cli_executable(git_url=None):
 def download_release_file(
     version: str | None, pattern=None, directory=None, repo: str | None = None
 ):
-
     cli_exec_path = get_cli_executable(repo)
 
     if not os.path.isfile(cli_exec_path):
@@ -101,24 +100,28 @@ def download_release_file(
         return 0
 
     def check_wildcard(path):
-        if "*" in file:
-            return False
-        return True
+        if "*" in path:
+            return True
+        return False
 
     if pattern:
         if not isinstance(pattern, list):
             pattern = [pattern]
         for file in pattern:
-            if check_wildcard(file):
+            if not check_wildcard(file):
                 res = try_remove(file)
                 if res != 0:
                     return res
+            elif "gh" in cli_exec_path:
+                args.extend(["--clobber"])
             if "glab" in cli_exec_path:
                 args.extend(["-n", file])
             else:
                 args.extend(["-p", file])
     else:
         pattern = "*"
+        if "gh" in cli_exec_path:
+            args.extend(["--clobber"])
 
     creds = get_token_env(repo)
 

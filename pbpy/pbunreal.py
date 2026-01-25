@@ -32,6 +32,7 @@ engine_installation_folder_regex = [r"[0-9].[0-9]{2}.*-", r"-[0-9]{8}"]
 
 p4merge_path = "/p4merge/p4merge.exe"
 
+ps_reg_path = r'"HKCU:/Software/Epic Games/Unreal Engine/Builds"'
 reg_path = r"HKCU\Software\Epic Games\Unreal Engine\Builds"
 
 long_path = "\\\\?\\"
@@ -186,10 +187,10 @@ def project_version_increase(increase_type):
         return False
     if increase_type == "patch":
         new_version = (
-            f"{version_split[0] }.{version_split[1]}.{str(int(version_split[2]) + 1)}"
+            f"{version_split[0]}.{version_split[1]}.{str(int(version_split[2]) + 1)}"
         )
     elif increase_type == "minor":
-        new_version = f"{version_split[0] }.{str(int(version_split[1]) + 1)}.0"
+        new_version = f"{version_split[0]}.{str(int(version_split[1]) + 1)}.0"
     elif increase_type == "major":
         new_version = f"{str(int(version_split[2]) + 1)}.0.0"
     else:
@@ -739,25 +740,46 @@ gb_div = 1.0 / gb_multiplier
 def parse_reg_query(proc):
     query = proc.stdout.splitlines()
     for res in query:
-        if res.startswith("    "):
-            key, rtype, value = res.split("    ")[1:]
-            yield key, rtype, value
+        res = res.strip()
+        if not res:
+            continue
+        if res.startswith("PS"):
+            continue
+        key, value = res.split(" : ", 1)
+        yield key, value
 
 
 def register_engine(version, path):
     if os.name == "nt":
+        path = Path(path)
+        target_path = str(Path(path).as_posix())
+        registry_list = pbtools.run_with_combined_output(
+            ["powershell", "-Command", "Get-ItemProperty", "-Path", ps_reg_path]
+        )
         # query if this path is used elsewhere, if so, we delete it
-        for key, rtype, value in parse_reg_query(
-            pbtools.run_with_combined_output(
-                ["reg", "query", reg_path, "/f", path, "/e", "/t", "REG_SZ"]
-            )
-        ):
-            # if we already have this version, no need to reregister it
-            if key == version:
+        for key, value in parse_reg_query(registry_list):
+            # if we already have this version with our target path, no need to reregister it
+            is_target_version = key == version
+            if is_target_version and target_path == value:
                 return False
-            pbtools.run(["reg", "delete", reg_path, "/v", key, "/f"])
+            # clear out if:
+            # 1) if we do have a version match, but the path is different, OR
+            # 2) if we have this path under a different version
+            if is_target_version or path == Path(value):
+                pbtools.run(["reg", "delete", reg_path, "/v", key, "/f"])
         pbtools.run(
-            ["reg", "add", reg_path, "/f", "/v", version, "/t", "REG_SZ", "/d", path]
+            [
+                "reg",
+                "add",
+                reg_path,
+                "/f",
+                "/v",
+                version,
+                "/t",
+                "REG_SZ",
+                "/d",
+                target_path,
+            ]
         )
         return True
 
@@ -950,7 +972,7 @@ def download_engine(bundle_name: str, download_symbols: bool):
             gcs_bucket = get_versionator_gsuri()
             if not gcs_bucket:
                 pbtools.error_state(
-                    f"Cloud storage bucket not configured. Please get support from {pbconfig.get("support_channel")}"
+                    f"Cloud storage bucket not configured. Please get support from {pbconfig.get('support_channel')}"
                 )
                 return
             # TODO: maybe cache out Saved and Intermediate folders?
@@ -1035,10 +1057,19 @@ def download_engine(bundle_name: str, download_symbols: bool):
             # print out a newline
             print("")
 
+            version_matches = (
+                branch_version and get_engine_version_with_prefix() == branch_version
+            )
+
             if proc.returncode:
-                pbtools.error_state(
-                    f"Failed to download engine update. Make sure your system time is synced. If this issue persists, please request help from {pbconfig.get('support_channel')}."
-                )
+                if not version_matches:
+                    pbtools.error_state(
+                        f"Failed to download engine update. Make sure your system time is synced. If this issue persists, please request help from {pbconfig.get('support_channel')}."
+                    )
+                else:
+                    pblog.error(
+                        f"Failed to download engine update. Make sure your system time is synced. You may also be offline. If this issue persists, please request help from {pbconfig.get('support_channel')}."
+                    )
             # TODO: similarly, have to copy PDBs out into a store so longtail doesn't touch the engine and delete everything but symbols
             if download_symbols:
                 pblog.warning(
@@ -1105,9 +1136,9 @@ def update_source_control():
     with ue_config(
         "Saved/Config/Windows/SourceControlSettings.ini"
     ) as source_control_config:
-        source_control_config["SourceControl.SourceControlSettings"][
-            "Provider"
-        ] = "Git LFS 2"
+        source_control_config["SourceControl.SourceControlSettings"]["Provider"] = (
+            "Git LFS 2"
+        )
         git_lfs_2 = source_control_config["GitSourceControl.GitSourceControlSettings"]
         binary_path = pbgit.get_git_executable()
         if binary_path and binary_path != "git":
@@ -1424,9 +1455,10 @@ def inspect_source(all=False):
     if not zip_path.exists():
         pblog.info(f"Downloading Resharper {version}")
         url = f"https://download-cdn.jetbrains.com/resharper/dotUltimate.{version}/{zip_name}"
-        with urllib.request.urlopen(url) as response, open(
-            str(zip_path), "wb"
-        ) as out_file:
+        with (
+            urllib.request.urlopen(url) as response,
+            open(str(zip_path), "wb") as out_file,
+        ):
             shutil.copyfileobj(response, out_file)
     resharper_dir = saved_dir / Path("ResharperCLI")
     pblog.info(f"Unpacking Resharper {version}")
@@ -1535,7 +1567,7 @@ def build_installed_build():
         # reconstruct a versioned branch name
         major = build_version["MajorVersion"]
         minor = build_version["MinorVersion"]
-        branch_version = f"{major}.{minor}-{branch.split("-main")[0].upper()}"
+        branch_version = f"{major}.{minor}-{branch.split('-main')[0].upper()}"
     changelist = build_version["Changelist"] + 1
     code_changelist = build_version["CompatibleChangelist"] + 1
 
