@@ -54,7 +54,6 @@ def get_lfs_executable():
     return pbconfig.get_user("paths", "git-lfs", "git-lfs")
 
 
-@lru_cache()
 def get_gcm_executable(recursed=False):
     gcm_exec = pbtools.get_one_line_output(
         [get_git_executable(), "config", "--get", "credential.helper"]
@@ -63,7 +62,9 @@ def get_gcm_executable(recursed=False):
     if not gcm_exec:
         # try setting GCM
         if not recursed:
-            pbtools.run(["git", "config", "credential.helper", "manager"])
+            pbtools.run(
+                [get_git_executable(), "config", "credential.helper", "manager"]
+            )
             return get_gcm_executable(recursed=True)
         return None
     # old style
@@ -75,7 +76,9 @@ def get_gcm_executable(recursed=False):
     # helper installed, but not GCM
     if "git-credential-manager" not in gcm_exec:
         if not recursed:
-            pbtools.run(["git", "config", "credential.helper", "manager"])
+            pbtools.run(
+                [get_git_executable(), "config", "credential.helper", "manager"]
+            )
             return get_gcm_executable(recursed=True)
         return [f"diff.{gcm_exec}"]
     return [gcm_exec]
