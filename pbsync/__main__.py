@@ -5,6 +5,7 @@ import os
 import sys
 from functools import partial
 from pathlib import Path
+from ast import literal_eval
 
 from pbpy import (
     pbbutler,
@@ -338,7 +339,7 @@ def main(argv):
             "engine_prefix": ("versionator/engineprefix", None, "", True),
             "engine_type": ("versionator/enginetype", None, "ue5", True),
             "versioned_branch": ("versionator/versionedbranch", None, True, True),
-            "cloud_storage": ("versionator/cloud_storage", None, False, True),
+            "cloud_storage": ("versionator/cloud_storage", None, "", True),
             "uses_longtail": ("versionator/uses_longtail", None, False, True),
             "git_instructions": (
                 "msg/git_instructions",
@@ -369,6 +370,15 @@ def main(argv):
                 if size == 1 and is_single:
                     # if there is just one key, use it
                     el = el[0]
+                
+                # Attempt to parse literal as a python literal if its type does not match the type of the default value.
+                # fixes bugs where config.get(key) is ran on a key which is expected to be boolean
+                # if the key is set in config, its boolean implicit cast will always be true, since strings 'False' and 'True' both evaluate to True when converting to bool.
+                if is_single and (default is not None) and type(el) != type(default):
+                    try:
+                        el = literal_eval(el) # not as crazy as eval, only parses literals (https://docs.python.org/3/library/ast.html#ast.literal_eval)
+                    except (TypeError, ValueError) as e:
+                        raise TypeError(f"Invalid value '{el}' for config key {key}: {e}")
             else:
                 el = default
                 optional = default is not None
