@@ -1590,8 +1590,7 @@ def build_installed_build():
         "uebp_Depot": str(depot),
     }
     now = datetime.datetime.now(tz=datetime.timezone.utc)
-    today = now.date()
-    date = today.strftime("%Y%m%d")
+    date = now.strftime("%Y%m%d")
     env["uebp_BuildRoot_P4"] = f"{branch_version}-{date}"
 
     # build the installed engine
