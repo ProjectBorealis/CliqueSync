@@ -1,5 +1,6 @@
 import configparser
 import contextlib
+import datetime
 import glob
 import json
 import os
@@ -1567,12 +1568,14 @@ def build_installed_build():
         [pbgit.get_git_executable(), "-C", str(engine_path), "branch", "--show-current"]
     )
 
-    branch_version = None
     if "-main" in branch:
         # reconstruct a versioned branch name
-        major = build_version["MajorVersion"]
-        minor = build_version["MinorVersion"]
-        branch_version = f"{major}.{minor}-{branch.split('-main')[0].upper()}"
+        depot = branch.split("-main", 1)[0].upper()
+    else:
+        depot = branch.split("-", 1)[1].upper()
+    major = build_version["MajorVersion"]
+    minor = build_version["MinorVersion"]
+    branch_version = f"{major}.{minor}-{depot}"
     changelist = build_version["Changelist"] + 1
     code_changelist = build_version["CompatibleChangelist"] + 1
 
@@ -1584,9 +1587,11 @@ def build_installed_build():
         "CI": "1",
         "uebp_CL": str(changelist),
         "uebp_CodeCL": str(code_changelist),
+        "uebp_Depot": str(depot),
     }
-    if branch_version:
-        env["uebp_BaseBranch"] = branch_version
+    today = datetime.date.fromtimestamp(datetime.time(tzinfo=datetime.timezone.utc))
+    date = today.strftime("%Y%m%d")
+    env["uebp_BuildRoot_P4"] = f"{branch_version}-{date}"
 
     # build the installed engine
     proc = pbtools.run_stream(
