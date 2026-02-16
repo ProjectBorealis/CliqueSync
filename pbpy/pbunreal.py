@@ -202,6 +202,28 @@ def project_version_increase(increase_type):
 
 
 @lru_cache()
+def require_engine_version(major: int, minor: int) -> bool:
+    engine_association = get_engine_association()
+    if engine_association.startswith(uev_prefix):
+        version = pbconfig.get("engine_base_version")
+    else:
+        version = engine_association
+    if version is None:
+        return False
+    version_split = version.split(".")
+    if len(version_split) != 2:
+        pblog.error("Incorrect engine base version detected")
+        return False
+    cur_major = int(version_split[0])
+    if cur_major > major:
+        return True
+    cur_minor = int(version_split[1])
+    if cur_major == major and cur_minor >= minor:
+        return True
+    return False
+
+
+@lru_cache()
 def get_engine_prefix() -> str:
     return f"{pbconfig.get('engine_base_version')}-{get_engine_version_prefix()}"
 
@@ -673,7 +695,10 @@ def get_unreal_version_selector_path():
 def run_unreal_setup():
     base_path = get_engine_base_path()
     pblog.info("Installing Unreal Engine prerequisites (requires admin permission)")
-    prereq_exe = "UEPrereqSetup_x64" if is_ue5() else "UE4PrereqSetup_x64"
+    if require_engine_version(5, 6):
+        prereq_exe = "vc_redist.x64"
+    else:
+        prereq_exe = "UEPrereqSetup_x64" if is_ue5() else "UE4PrereqSetup_x64"
     prereq_path = base_path / Path(
         f"Engine/Extras/Redist/en-us/{prereq_exe}{get_exe_ext()}"
     )
