@@ -886,7 +886,6 @@ def download_engine(bundle_name: str, download_symbols: bool):
         # create install dir if doesn't exist
         os.makedirs(root, exist_ok=True)
 
-        root_path = Path(root)
         base_path = get_engine_base_path()
 
         if not legacy_archives:
@@ -1558,8 +1557,8 @@ clean_binaries_globs = [
 def clean_binaries_folder(clean_pdbs):
     base_path = Path(".")
     for binaries_path in binaries_paths:
-        for glob in clean_binaries_globs:
-            for file in base_path.glob(f"{binaries_path}/{get_platform_name()}/{glob}"):
+        for binary_glob in clean_binaries_globs:
+            for file in base_path.glob(f"{binaries_path}/{get_platform_name()}/{binary_glob}"):
                 file.unlink()
 
     if clean_pdbs:

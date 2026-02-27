@@ -1,13 +1,12 @@
 import os
 import re
 import shutil
-import time
 import traceback
 import urllib.request
 from pathlib import Path
 
 import gevent
-import steam.protobufs.steammessages_partnerapps_pb2  # don't remove
+import steam.protobufs.steammessages_partnerapps_pb2  # noqa: F401 - don't remove
 from steam.client import SteamClient
 
 from pbpy import pbconfig, pbinfo, pblog, pbtools

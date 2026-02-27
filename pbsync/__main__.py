@@ -3,9 +3,9 @@ import json
 import multiprocessing
 import os
 import sys
+from ast import literal_eval
 from functools import partial
 from pathlib import Path
-from ast import literal_eval
 
 from pbpy import (
     pbbutler,
@@ -285,7 +285,7 @@ def main(argv):
     )
     parser.add_argument(
         "--uproject",
-        help=f"Multi-project folders only: project name to choose from. If not provided, it will prompt the user for one, or in CI environments, use the first one found.",
+        help="Multi-project folders only: project name to choose from. If not provided, it will prompt the user for one, or in CI environments, use the first one found.",
         default="",
     )
 
@@ -298,7 +298,7 @@ def main(argv):
         error_state(hush=True, term=True)
         return
 
-    if not (args.debugpath is None):
+    if args.debugpath is not None:
         # Work on provided debug path
         os.chdir(str(args.debugpath))
 
@@ -374,7 +374,7 @@ def main(argv):
                 # Attempt to parse literal as a python literal if its type does not match the type of the default value.
                 # fixes bugs where config.get(key) is ran on a key which is expected to be boolean
                 # if the key is set in config, its boolean implicit cast will always be true, since strings 'False' and 'True' both evaluate to True when converting to bool.
-                if is_single and (default is not None) and type(el) != type(default):
+                if is_single and (default is not None) and type(el) is not type(default):
                     try:
                         el = literal_eval(el) # not as crazy as eval, only parses literals (https://docs.python.org/3/library/ast.html#ast.literal_eval)
                     except (TypeError, ValueError) as e:
@@ -486,17 +486,17 @@ def main(argv):
         error_state(hush=True)
 
     # Parse args
-    if not (args.printversion is None):
+    if args.printversion is not None:
         printversion_handler(args.printversion)
-    if not (args.clean is None):
+    if args.clean is not None:
         clean_handler(args.clean)
-    if not (args.sync is None):
+    if args.sync is not None:
         sync_handler(args.sync)
-    if not (args.autoversion is None):
+    if args.autoversion is not None:
         autoversion_handler(args.autoversion)
-    if not (args.build is None):
+    if args.build is not None:
         build_handler(args.build)
-    if not (args.publish is None):
+    if args.publish is not None:
         publish_handler(args.publish)
 
     pbconfig.shutdown()

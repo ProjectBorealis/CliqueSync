@@ -325,7 +325,7 @@ class GitPrereq(VersionedPrereq):
             repo="microsoft/git",
             asset_pattern=PlatformSpecificValue(
                 platform_values={
-                    "win32": f"Git-*-64-bit.exe",
+                    "win32": "Git-*-64-bit.exe",
                     "darwin": "git-*-universal.pkg",
                 },
             ),
@@ -340,7 +340,7 @@ class GitPrereq(VersionedPrereq):
             }
         )
 
-        ok = linstall() == True
+        ok = linstall() is True
         if ok:
             if os.name == "nt":
                 # Reconfigure GCM path
@@ -462,7 +462,7 @@ class GitLFSPrereq(VersionedPrereq):
                 "linux": PosixPackageInstaller(["git-lfs"]).install,
             }
         )
-        ok = linstall() == True
+        ok = linstall() is True
         if ok:
             # Configure LFS hooks for the user
             current_drive = Path().resolve()
@@ -592,7 +592,7 @@ class GitCredentialManagerPrereq(VersionedPrereq):
             or detected == pbgit.missing_version
             or (isinstance(detected, str) and detected.startswith("diff"))
         )
-        ok = linstall() == True if need_install else True
+        ok = linstall() is True if need_install else True
 
         # (Re)configure GCM and verify
         gcm_bin = pbgit.get_gcm_executable()

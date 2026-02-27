@@ -1,7 +1,6 @@
 import os
 import sys
 import threading
-from pathlib import Path
 
 from pbpy import pbconfig, pbgh, pbgit, pblog, pbtools, pbunreal
 from pbsync import prereqs
@@ -343,7 +342,7 @@ def launch_project():
 
                 if not launched_editor:
                     pblog.warning(
-                        f"CliqueSync failed to find a valid file association to launch the editor, and will attempt to launch the editor directly as a workaround."
+                        "CliqueSync failed to find a valid file association to launch the editor, and will attempt to launch the editor directly as a workaround."
                     )
                     pbtools.run_non_blocking_ex([pbunreal.get_editor_path(), path])
                     pblog.warning(

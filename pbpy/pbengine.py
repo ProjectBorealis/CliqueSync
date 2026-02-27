@@ -1,12 +1,7 @@
 import json
-
 from pathlib import Path
 
-from pbpy import pbconfig
-from pbpy import pbtools
-from pbpy import pblog
-from pbpy import pbgit
-from pbpy import pbuac
+from pbpy import pbgit, pbtools
 
 
 def generate_module_changes(old_commitish, new_commitish):

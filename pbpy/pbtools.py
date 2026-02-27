@@ -285,7 +285,7 @@ def compare_hash_single(compared_file_path, hash_json_file_path):
     dict_search_string = f"{compared_file_path}"
     hash_dict = get_dict_from_json(hash_json_file_path)
 
-    if hash_dict is None or not (dict_search_string in hash_dict):
+    if hash_dict is None or dict_search_string not in hash_dict:
         pblog.error(f"Key {dict_search_string} not found in {hash_json_file_path}")
         return False
 
@@ -720,8 +720,7 @@ def resolve_conflicts_and_pull(retry_count=0, max_retries=1):
             chunked_files = chunks(changed_files, batch_size)
 
             # make index.lock to block LFS from updating index
-            with open(".git/index.lock", "w") as f:
-                pass
+            Path(".git/index.lock").touch()
 
             # Update index without FS monitor
             run(
@@ -862,7 +861,7 @@ def resolve_conflicts_and_pull(retry_count=0, max_retries=1):
     ):
         if should_attempt_auto_resolve():
             pblog.error("Untracked files would be overwritten. Retrying...")
-            files = [l.strip() for l in out.splitlines()[1:]]
+            files = [line.strip() for line in out.splitlines()[1:]]
             run_with_combined_output(
                 [pbgit.get_git_executable(), "add", "-A", "--", *files]
             )

@@ -70,9 +70,12 @@ def runAsAdmin(cmdLine=None, wait=True):
     if os.name != "nt":
         raise RuntimeError("This function is only implemented on Windows.")
 
-    import win32con, win32event, win32process, pywintypes
-    from win32com.shell.shell import ShellExecuteEx
+    import pywintypes
+    import win32con
+    import win32event
+    import win32process
     from win32com.shell import shellcon
+    from win32com.shell.shell import ShellExecuteEx
 
     if not isinstance(cmdLine, (tuple, list)):
         raise ValueError("cmdLine is not a sequence.")

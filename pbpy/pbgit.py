@@ -157,7 +157,7 @@ def get_locked(key="ours", include_new=True):
     if proc.returncode:
         return None
     locked_objects = json.loads(proc.stdout)[key]
-    locked = set([l.get("path") for l in locked_objects])
+    locked = set([lock.get("path") for lock in locked_objects])
     # also check untracked and added files
     if key == "ours" and include_new:
         proc = pbtools.run_with_combined_output(
