@@ -702,7 +702,10 @@ def run_unreal_setup():
     prereq_path = base_path / Path(
         f"Engine/Extras/Redist/en-us/{prereq_exe}{get_exe_ext()}"
     )
-    pbtools.run([str(prereq_path), "/quiet"])
+    if prereq_path.is_file():
+        pbtools.run([str(prereq_path), "/quiet"])
+    else:
+        pblog.error("Unreal Engine prerequisites installer not found.")
     pblog.info("Registering Unreal Engine file associations")
     selector_path, is_custom = get_unreal_version_selector_path()
     if not selector_path or not selector_path.exists():
@@ -753,7 +756,7 @@ def generate_project_files():
         )
     pbtools.run(
         [
-            str(),
+            str(selector_path),
             "/projectfiles",
             str(get_uproject_path()),
         ]
@@ -1558,7 +1561,9 @@ def clean_binaries_folder(clean_pdbs):
     base_path = Path(".")
     for binaries_path in binaries_paths:
         for binary_glob in clean_binaries_globs:
-            for file in base_path.glob(f"{binaries_path}/{get_platform_name()}/{binary_glob}"):
+            for file in base_path.glob(
+                f"{binaries_path}/{get_platform_name()}/{binary_glob}"
+            ):
                 file.unlink()
 
     if clean_pdbs:
