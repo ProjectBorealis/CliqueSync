@@ -64,7 +64,7 @@ def run_with_output(cmd, env=None, env_out=None):
         cmd = " ".join(cmd) if isinstance(cmd, list) else cmd
 
     env = handle_env(env)
-    proc = subprocess.run(cmd, capture_output=True, text=True, shell=True, env=env)
+    proc = subprocess.run(cmd, capture_output=True, text=True, shell=True, env=env, errors="replace")
     parse_environment(proc.stdout, env_out)
     return proc
 
@@ -124,6 +124,7 @@ def run_stream(cmd, env=None, logfunc=None, cwd=None):
         cwd=cwd,
         startupinfo=startupinfo,
         encoding="utf8",
+        errors="replace",
     )
     returncode = None
     while True:
@@ -145,7 +146,7 @@ def run_with_stdin(cmd, input, env=None, env_out=None):
 
     env = handle_env(env)
     proc = subprocess.run(
-        cmd, input=input, capture_output=True, text=True, shell=True, env=env
+        cmd, input=input, capture_output=True, text=True, shell=True, env=env, errors="replace"
     )
     parse_environment(proc.stdout, env_out)
     return proc
@@ -164,6 +165,7 @@ def run_with_combined_output(cmd, env=None, env_out=None):
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         env=env,
+        errors="replace",
     )
     parse_environment(proc.stdout, env_out)
     return proc
@@ -253,6 +255,7 @@ def whereis(app):
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            errors="replace",
         ).stdout
     except CalledProcessError:
         pass
