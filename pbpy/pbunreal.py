@@ -776,6 +776,8 @@ def parse_reg_query(proc):
             continue
         if res.startswith("PS"):
             break
+        if " : " not in res:
+            continue
         key, value = res.split(" : ", 1)
         key = key.strip()
         value = value.strip()
