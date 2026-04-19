@@ -288,6 +288,12 @@ def main(argv):
         help="Multi-project folders only: project name to choose from. If not provided, it will prompt the user for one, or in CI environments, use the first one found.",
         default="",
     )
+    parser.add_argument(
+        "--bootstrap",
+        help="Bootstraps a repository from the provided URL, cloning it and then running a sync.",
+        type=str,
+        default=None,
+    )
 
     if len(argv) > 0:
         args = parser.parse_args(argv)
@@ -301,6 +307,46 @@ def main(argv):
     if args.debugpath is not None:
         # Work on provided debug path
         os.chdir(str(args.debugpath))
+
+    if args.bootstrap is not None:
+        import subprocess
+        from urllib.parse import urlparse
+
+        repo_url = args.bootstrap
+        path = urlparse(repo_url).path
+        repo_name = path.split("/")[-1]
+        if repo_name.endswith(".git"):
+            repo_name = repo_name[:-4]
+        if not repo_name:
+            repo_name = "game_repo"
+
+        print(f"Bootstrapping repository: {repo_url}")
+        default_path = Path.cwd() / repo_name
+        response = input(f"Where would you like to clone the repository? (Press Enter for '{default_path}'): ").strip()
+
+        target_path = Path(response).resolve() if response else default_path
+
+        if target_path.exists() and any(target_path.iterdir()):
+            print("")
+            pblog.error(f"Cannot bootstrap into {target_path}: Directory already exists and is not empty.")
+            input("Press enter to continue...")
+            error_state(hush=True, term=True)
+            return
+
+        print("")
+        pblog.info(f"Cloning repository {repo_url} into {target_path}...")
+        res = subprocess.call(["git", "clone", repo_url, str(target_path)])
+        if res != 0:
+            print("")
+            pblog.error(f"Failed to clone repository {repo_url} into {target_path}.")
+            input("Press enter to continue...")
+            error_state(hush=True, term=True)
+            return
+
+        os.chdir(target_path)
+
+        if args.sync is None and not any([args.printversion, args.clean, args.autoversion, args.build, args.publish]):
+            args.sync = "all"
 
     # Parser function object for CliqueSync config file
     def pbsync_config_parser_func(root):
