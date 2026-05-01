@@ -1,6 +1,7 @@
 import os
 import sys
 import threading
+from pathlib import Path
 
 from pbpy import pbconfig, pbgh, pbgit, pblog, pbtools, pbunreal
 from pbsync import prereqs
@@ -219,6 +220,77 @@ def ensure_project_file():
         pbtools.error_state(
             f"Something went wrong while updating the uproject file. Please request help from {pbconfig.get('support_channel')}."
         )
+    return True
+
+
+@register_action()
+def ensure_symlinks():
+    symlinks = pbconfig.get("symlinks")
+    if not symlinks:
+        return True
+
+    project_dir = pbunreal.get_uproject_path()
+
+    for symlink in symlinks:
+        source = symlink.get("source", "")
+        target = symlink.get("target", "")
+
+        # skip if target is blank in symlink def
+        if not target:
+            continue
+
+        # source can be blank, for removal, but skip substituion in this case
+        if source:
+            if "$PROJECT" in source:
+                source = source.replace("$PROJECT", project_dir)
+            source = os.path.expandvars(source)
+
+        if "$PROJECT" in target:
+            target = target.replace("$PROJECT", project_dir)
+        target = os.path.expandvars(target)
+
+        if not target:
+            continue
+
+        target_path = Path(target).resolve()
+
+        if not source:
+            if target_path.exists() or pbtools.is_symlink(target_path):
+                if not pbtools.remove_symlink(target_path):
+                    pblog.error(f"Failed to remove symlink target {target}")
+            continue
+
+        source_path = Path(source).resolve()
+        if not source_path.exists():
+            pblog.warning(
+                f"Symlink source {source} for target {target} does not exist. Ignoring."
+            )
+            continue
+
+        if pbtools.is_symlink(target_path):
+            is_correct = False
+            try:
+                link_target = os.readlink(str(target_path))
+                if Path(link_target).resolve() == source_path:
+                    is_correct = True
+            except OSError:
+                pass
+
+            if is_correct:
+                continue
+            else:
+                if not pbtools.remove_symlink(target_path):
+                    pblog.error(f"Failed to remove symlink target {target}")
+        elif target_path.exists():
+            pblog.warning(
+                f"Target {target} already exists and is not a symlink. Skipping."
+            )
+            continue
+
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        if not pbtools.create_symlink(source_path, target_path):
+            pblog.error(f"Failed to create symlink for {target}")
+
     return True
 
 

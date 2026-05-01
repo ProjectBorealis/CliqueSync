@@ -79,6 +79,7 @@ def sync_handler(sync_val: str):
 
         sync_workflow.append(actions.tidy_binaries)
         sync_workflow.append(actions.ensure_project_file)
+        sync_workflow.append(actions.ensure_symlinks)
         sync_workflow.append(actions.download_engine)
         sync_workflow.append(actions.lfs_unlock_thread)
 
@@ -435,6 +436,13 @@ def main(argv):
 
         if missing_keys:
             raise KeyError("Missing keys: %s" % ", ".join(missing_keys))
+
+        symlinks = []
+        for symlink_el in root.findall("symlinks/symlink"):
+            source = symlink_el.get("source", "")
+            target = symlink_el.get("target", "")
+            symlinks.append({"source": source, "target": target})
+        config_map["symlinks"] = symlinks
 
         return config_map
 

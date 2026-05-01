@@ -64,7 +64,9 @@ def run_with_output(cmd, env=None, env_out=None):
         cmd = " ".join(cmd) if isinstance(cmd, list) else cmd
 
     env = handle_env(env)
-    proc = subprocess.run(cmd, capture_output=True, text=True, shell=True, env=env, errors="replace")
+    proc = subprocess.run(
+        cmd, capture_output=True, text=True, shell=True, env=env, errors="replace"
+    )
     parse_environment(proc.stdout, env_out)
     return proc
 
@@ -146,7 +148,13 @@ def run_with_stdin(cmd, input, env=None, env_out=None):
 
     env = handle_env(env)
     proc = subprocess.run(
-        cmd, input=input, capture_output=True, text=True, shell=True, env=env, errors="replace"
+        cmd,
+        input=input,
+        capture_output=True,
+        text=True,
+        shell=True,
+        env=env,
+        errors="replace",
     )
     parse_environment(proc.stdout, env_out)
     return proc
@@ -342,26 +350,63 @@ def get_dict_from_json(json_file_path):
         return None
 
 
-def is_junction(file_path: str) -> bool:
+def is_symlink(file_path: Path | str) -> bool:
     try:
-        return bool(os.readlink(file_path))
+        if isinstance(file_path, str):
+            file_path = Path(file_path)
+        if file_path.is_symlink():
+            return True
+        return bool(os.readlink(str(file_path)))
     except OSError:
         return False
     except ValueError:
         return False
     except NotImplementedError:
         return False
+    except AttributeError:
+        return False
 
 
-def remove_junction(destination):
-    if os.path.isdir(destination):
+def create_symlink(source: Path, destination: Path) -> bool:
+    if destination.exists():
+        return False
+
+    try:
+        if os.name == "nt":
+            if source.is_dir():
+                import _winapi
+
+                _winapi.CreateJunction(str(source), str(destination))
+            else:
+                proc = run_with_combined_output(
+                    ["cmd", "/c", "mklink", str(destination), str(source)]
+                )
+                if proc.returncode != 0:
+                    return False
+        else:
+            os.symlink(
+                str(source), str(destination), target_is_directory=source.is_dir()
+            )
+    except Exception as e:
+        pblog.error(f"Failed to create link: {e}")
+        return False
+    return True
+
+
+def remove_symlink(destination: Path | str) -> bool:
+    if isinstance(destination, Path):
+        destination = str(destination)
+
+    if not is_symlink(destination):
+        return False
+
+    try:
+        os.unlink(destination)
+    except OSError:
         try:
-            shutil.rmtree(destination)
-        except Exception:
-            try:
-                os.remove(destination)
-            except Exception:
-                return False
+            os.rmdir(destination)
+        except OSError:
+            return False
     return True
 
 
