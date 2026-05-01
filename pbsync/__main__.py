@@ -323,13 +323,17 @@ def main(argv):
 
         print(f"Bootstrapping repository: {repo_url}")
         default_path = Path.cwd() / repo_name
-        response = input(f"Where would you like to clone the repository? (Press Enter for '{default_path}'): ").strip()
+        response = input(
+            f"Where would you like to clone the repository? (Press Enter for '{default_path}'): "
+        ).strip()
 
         target_path = Path(response).resolve() if response else default_path
 
         if target_path.exists() and any(target_path.iterdir()):
             print("")
-            pblog.error(f"Cannot bootstrap into {target_path}: Directory already exists and is not empty.")
+            pblog.error(
+                f"Cannot bootstrap into {target_path}: Directory already exists and is not empty."
+            )
             input("Press enter to continue...")
             error_state(hush=True, term=True)
             return
@@ -346,7 +350,9 @@ def main(argv):
 
         os.chdir(target_path)
 
-        if args.sync is None and not any([args.printversion, args.clean, args.autoversion, args.build, args.publish]):
+        if args.sync is None and not any(
+            [args.printversion, args.clean, args.autoversion, args.build, args.publish]
+        ):
             args.sync = "all"
 
     # Parser function object for CliqueSync config file
@@ -417,15 +423,23 @@ def main(argv):
                 if size == 1 and is_single:
                     # if there is just one key, use it
                     el = el[0]
-                
+
                 # Attempt to parse literal as a python literal if its type does not match the type of the default value.
                 # fixes bugs where config.get(key) is ran on a key which is expected to be boolean
                 # if the key is set in config, its boolean implicit cast will always be true, since strings 'False' and 'True' both evaluate to True when converting to bool.
-                if is_single and (default is not None) and type(el) is not type(default):
+                if (
+                    is_single
+                    and (default is not None)
+                    and type(el) is not type(default)
+                ):
                     try:
-                        el = literal_eval(el) # not as crazy as eval, only parses literals (https://docs.python.org/3/library/ast.html#ast.literal_eval)
+                        el = literal_eval(
+                            el
+                        )  # not as crazy as eval, only parses literals (https://docs.python.org/3/library/ast.html#ast.literal_eval)
                     except (TypeError, ValueError) as e:
-                        raise TypeError(f"Invalid value '{el}' for config key {key}: {e}")
+                        raise TypeError(
+                            f"Invalid value '{el}' for config key {key}: {e}"
+                        )
             else:
                 el = default
                 optional = default is not None
@@ -441,7 +455,8 @@ def main(argv):
         for symlink_el in root.findall("symlinks/symlink"):
             source = symlink_el.get("source", "")
             target = symlink_el.get("target", "")
-            symlinks.append({"source": source, "target": target})
+            project = symlink_el.get("project", "")
+            symlinks.append({"source": source, "target": target, "project": project})
         config_map["symlinks"] = symlinks
 
         return config_map
@@ -485,7 +500,7 @@ def main(argv):
 
         options = [file.stem for file in project_files]
         uproject_file = None
-        
+
         if should_select:
             for i, option in enumerate(options):
                 print(f"{i + 1}) {option}")

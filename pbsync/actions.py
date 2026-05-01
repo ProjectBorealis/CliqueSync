@@ -229,11 +229,16 @@ def ensure_symlinks():
     if not symlinks:
         return True
 
+    project_name = pbunreal.get_uproject_name()
     project_dir = pbunreal.get_uproject_path()
 
     for symlink in symlinks:
         source = symlink.get("source", "")
         target = symlink.get("target", "")
+        project = symlink.get("project", "")
+
+        if project and project != project_name:
+            continue
 
         # skip if target is blank in symlink def
         if not target:
