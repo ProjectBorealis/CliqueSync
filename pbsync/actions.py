@@ -232,6 +232,14 @@ def ensure_symlinks():
     project_name = pbunreal.get_uproject_name()
     project_dir = pbunreal.get_uproject_path()
 
+    vars_list = pbconfig.get("vars") or []
+    project_vars = []
+    for v in vars_list:
+        v_proj = v.get("project", "")
+        if not v_proj or v_proj == project_name:
+            if v.get("name"):
+                project_vars.append(v)
+
     for symlink in symlinks:
         source = symlink.get("source", "")
         target = symlink.get("target", "")
@@ -244,15 +252,23 @@ def ensure_symlinks():
         if not target:
             continue
 
-        # source can be blank, for removal, but skip substituion in this case
+        # source can be blank, for removal, but skip substitution in this case
         if source:
-            if "$PROJECT" in source:
-                source = source.replace("$PROJECT", project_dir)
+            for v in project_vars:
+                source = source.replace(v.get("name"), v.get("value"))
+            source = source.replace("$PROJECT", project_dir)
             source = os.path.expandvars(source)
 
-        if "$PROJECT" in target:
-            target = target.replace("$PROJECT", project_dir)
+        for v in project_vars:
+            target = target.replace(v.get("name"), v.get("value"))
+        target = target.replace("$PROJECT", project_dir)
         target = os.path.expandvars(target)
+
+        if "%" in target or "$" in target:
+            pblog.error(
+                f"Target {target} contains unexpanded variables. Please request help from {pbconfig.get('support_channel')}."
+            )
+            continue
 
         if not target:
             continue
@@ -263,6 +279,12 @@ def ensure_symlinks():
             if target_path.exists() or pbtools.is_symlink(target_path):
                 if not pbtools.remove_symlink(target_path):
                     pblog.error(f"Failed to remove symlink target {target}")
+            continue
+
+        if "%" in source or "$" in source:
+            pblog.error(
+                f"Source {source} contains unexpanded variables. Please request help from {pbconfig.get('support_channel')}."
+            )
             continue
 
         source_path = Path(source).resolve()

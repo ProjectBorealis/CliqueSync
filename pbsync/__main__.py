@@ -459,6 +459,14 @@ def main(argv):
             symlinks.append({"source": source, "target": target, "project": project})
         config_map["symlinks"] = symlinks
 
+        vars_list = []
+        for var_el in root.findall("vars/var"):
+            name = var_el.get("name", "")
+            value = var_el.get("value", "")
+            project = var_el.get("project", "")
+            vars_list.append({"name": name, "value": value, "project": project})
+        config_map["vars"] = vars_list
+
         return config_map
 
     # Preparation
