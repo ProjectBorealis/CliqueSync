@@ -549,6 +549,30 @@ def get_versionator_gs_base(fallback=None, host_only=False):
 
 
 @lru_cache()
+def get_binaries_gs_base(fallback=None, host_only=False):
+    if get_cloud_storage():
+        try:
+            uev_config = configparser.ConfigParser()
+            uev_config.read(".ueversionator")
+            # Default to the ueversionator baseurl if the binaries section is missing
+            fallback_base = uev_config.get(
+                "ueversionator", "baseurl", fallback=fallback
+            )
+
+            if uev_config.has_section("binaries"):
+                baseurl = uev_config.get("binaries", "baseurl", fallback=fallback_base)
+            else:
+                baseurl = fallback_base
+
+            return get_normalized_bucket(
+                baseurl, host_only=host_only, s3=get_cloud_storage() == "s3"
+            )
+        except Exception as e:
+            pblog.exception(str(e))
+    return None
+
+
+@lru_cache()
 def get_s3_endpoint_url():
     endpoint = get_versionator_gs_base(host_only=True)
     if endpoint:
@@ -572,6 +596,12 @@ def get_s3_credentials_env():
 @lru_cache()
 def get_versionator_gsuri(fallback=None):
     domain = get_versionator_gs_base(fallback)
+    return get_prefixed_bucket_url(domain)
+
+
+@lru_cache()
+def get_binaries_gsuri(fallback=None):
+    domain = get_binaries_gs_base(fallback)
     return get_prefixed_bucket_url(domain)
 
 
@@ -833,6 +863,32 @@ def get_bundle():
     return bundle_name
 
 
+def generate_cloud_storage_args_env(cs: str, bucket: str, args: list[str]):
+    env = None
+    if cs == "s3":
+        if is_custom_s3_uri(bucket):
+            endpoint = get_s3_endpoint_url()
+            if endpoint is None:
+                return env, False
+            args.extend(["--s3-endpoint-resolver-uri", endpoint])
+            # get access key / secret if provided
+            access_key = os.environ.get("S3_ACCESS_KEY_ID")
+            secret_key = os.environ.get("S3_SECRET_ACCESS_KEY")
+            if access_key and secret_key:
+                env = os.environ.copy()
+                env["AWS_ACCESS_KEY_ID"] = access_key
+                env["AWS_SECRET_ACCESS_KEY"] = secret_key
+        env = env or get_s3_credentials_env()
+    elif cs == "gcs":
+        credentials = os.environ.get("GCS_CREDENTIALS")
+        if credentials:
+            env = os.environ.copy()
+            env["GOOGLE_APPLICATION_CREDENTIALS"] = credentials
+        else:
+            env = {"GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"}
+    return env, True
+
+
 def download_engine(bundle_name: str, download_symbols: bool):
     version = get_engine_version_with_prefix()
     cs = get_cloud_storage()
@@ -1028,19 +1084,11 @@ def download_engine(bundle_name: str, download_symbols: bool):
                 )
 
             def change_args(args: list[str]):
-                env = None
-                if cs == "s3":
-                    if is_custom_s3_uri(gcs_bucket):
-                        endpoint = get_s3_endpoint_url()
-                        if endpoint is None:
-                            pbtools.error_state(
-                                "Custom S3 endpoint configured, but unable to parse from URI."
-                            )
-                            return
-                        args.extend(["--s3-endpoint-resolver-uri", endpoint])
-                    env = get_s3_credentials_env()
-                elif cs == "gcs":
-                    env = {"GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"}
+                env, success = generate_cloud_storage_args_env(cs, gcs_bucket, args)
+                if not success:
+                    pbtools.error_state(
+                        "Custom S3 endpoint configured, but unable to parse from URI."
+                    )
                 return env
 
             if branch_version and get_engine_version_with_prefix() != branch_version:
@@ -1170,9 +1218,9 @@ def update_source_control():
     with ue_config(
         "Saved/Config/Windows/SourceControlSettings.ini"
     ) as source_control_config:
-        source_control_config["SourceControl.SourceControlSettings"]["Provider"] = (
-            "Git LFS 2"
-        )
+        source_control_config["SourceControl.SourceControlSettings"][
+            "Provider"
+        ] = "Git LFS 2"
         git_lfs_2 = source_control_config["GitSourceControl.GitSourceControlSettings"]
         binary_path = pbgit.get_git_executable()
         if binary_path and binary_path != "git":
@@ -1468,6 +1516,20 @@ def package_binaries():
 
     pbtools.make_json_from_dict(hashes, pbconfig.get("checksum_file"))
 
+    uses_longtail_cfg = uses_longtail()
+    if uses_longtail_cfg:
+        staged_dir = Path("Saved/StagedBinaries")
+        if staged_dir.exists():
+            shutil.rmtree(staged_dir)
+        staged_dir.mkdir(parents=True, exist_ok=True)
+        for binaries_path in binaries_paths:
+            for file in base_path.glob(f"{binaries_path}/**/*"):
+                if not file.is_file():
+                    continue
+                dest = staged_dir / file
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(file, dest)
+
 
 def inspect_source(all=False):
     if all:
@@ -1489,7 +1551,9 @@ def inspect_source(all=False):
     zip_path = saved_dir / Path(zip_name)
     if not zip_path.exists():
         pblog.info(f"Downloading Resharper {version}")
-        url = f"https://download-cdn.jetbrains.com/resharper/dotUltimate.{version}/{zip_name}"
+        url = (
+            f"https://download.jetbrains.com/resharper/dotUltimate.{version}/{zip_name}"
+        )
         with (
             urllib.request.urlopen(url) as response,
             open(str(zip_path), "wb") as out_file,

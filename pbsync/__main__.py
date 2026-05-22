@@ -378,6 +378,13 @@ def main(argv):
             "engine_base_version": ("project/enginebaseversion", None, "", True),
             "uproject_name": ("project/uprojectname", None, "", True),
             "package_pdbs": ("project/packagepdbs", None, False, True),
+            "binaries_cloud_storage": (
+                "project/binaries_cloud_storage",
+                None,
+                "",
+                True,
+            ),
+            "git_provider": ("git/provider", None, "", True),
             "repo_folder": ("project/repo_folder", None, "default", True),
             "publish_publishers": ("publish/publisher", None, [], False),
             "publish_stagedir": ("publish/stagedir", None, "Saved/StagedBuilds", True),
