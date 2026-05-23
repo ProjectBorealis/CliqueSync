@@ -762,7 +762,7 @@ selected_uproject: str | None = None
 
 
 @lru_cache()
-def get_uproject_name():
+def get_uproject_name() -> str:
     if selected_uproject:
         return selected_uproject
     return pbconfig.get("uproject_name")
