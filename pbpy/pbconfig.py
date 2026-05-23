@@ -8,7 +8,7 @@ from pbpy import pbtools
 from pbpy import pblog
 
 # Singleton Config and path to said config
-config: dict[str, str | list[str] | bool] | None = None
+config: dict[str, str | list[str] | list[dict[str, str]] | bool] | None = None
 config_filepath = None
 
 user_config = None
@@ -45,13 +45,16 @@ def validated_get(key):
         else:
             success = False
             for idx in range(len(val)):
-                # strip to allow for xml formatting
-                val[idx] = val[idx].strip()
                 item = val[idx]
-                if item == "":
+                if isinstance(item, str):
+                    # strip to allow for xml formatting
+                    item = item.strip()
+                    val[idx] = item
+                if not val[idx]:
                     pblog.warning(f"{key}[{idx}] is not set in config")
                     # TODO: replace with None for type handling
-                    # val[idx] = None
+                    if not isinstance(item, str):
+                        val[idx] = {}
                 else:
                     success = True
     return val, success
