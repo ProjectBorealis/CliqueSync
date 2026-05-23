@@ -229,14 +229,14 @@ def ensure_symlinks():
     if not symlinks:
         return True
 
-    project_name = pbunreal.get_uproject_name()
-    project_dir = pbunreal.get_uproject_path().as_posix()
+    project_name = Path(pbunreal.get_uproject_name()).as_posix()
+    project_dir = pbunreal.get_uproject_path().parent.as_posix()
 
     vars_list = pbconfig.get("vars") or []
     project_vars = []
     for v in vars_list:
         v_proj = v.get("project", "")
-        if not v_proj or v_proj == project_name or Path(v_proj) == Path(project_name):
+        if not v_proj or v_proj == project_name:
             if v.get("name"):
                 project_vars.append(v)
 
