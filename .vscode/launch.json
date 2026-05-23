@@ -14,6 +14,12 @@
             "type": "promptString"
         },
         {
+            "id": "syncVal",
+            "description": "Please enter sync val",
+            "default": "",
+            "type": "promptString"
+        },
+        {
             "id": "dispatchPath",
             "description": "Please enter path for dispatch executable",
             "default": "",
@@ -78,6 +84,22 @@
             "args": [
                 "--sync",
                 "all",
+                "--debugpath",
+                "${input:debugPath}",
+                "--debugbranch",
+                "${input:debugBranch}"
+            ],
+            "type": "python",
+            "justMyCode": false,
+            "request": "launch",
+            "module": "pbsync",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Sync Custom",
+            "args": [
+                "--sync",
+                "${input:syncVal}",
                 "--debugpath",
                 "${input:debugPath}",
                 "--debugbranch",
