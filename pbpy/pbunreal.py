@@ -1717,16 +1717,20 @@ def build_installed_build():
     local_engine_path = local_builds_path / "Engine"
     local_build_target = "Windows"
     editor_verification = get_bundle_verification_file("editor")
-    engine_verification = get_bundle_verification_file("engine")
     local_engine_target_path = local_engine_path / local_build_target
 
-    unreal_editor_binary = local_engine_target_path / editor_verification
+    unreal_editor_binary = (
+        local_engine_target_path / f"{editor_verification}{get_exe_ext()}"
+    )
     if not unreal_editor_binary.exists():
         pbtools.error_state(
             f"Expected editor binary not found at {unreal_editor_binary}. Build may have failed."
         )
 
-    unreal_game_binary = local_engine_target_path / engine_verification
+    engine_verification = get_bundle_verification_file("engine")
+    unreal_game_binary = (
+        local_engine_target_path / f"{engine_verification}{get_exe_ext()}"
+    )
     if not unreal_game_binary.exists():
         pbtools.error_state(
             f"Expected game binary not found at {unreal_game_binary}. Build may have failed."
