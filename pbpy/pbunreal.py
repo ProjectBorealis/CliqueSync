@@ -1697,7 +1697,7 @@ def build_installed_build():
             "-Script=Engine/Build/InstalledEngineBuild.xml",
             "-NoP4",
             "-NoCodeSign",
-            "-Set:EditorTarget=editor",
+            f"-Set:EditorTarget={get_editor_program()}",
             "-Set:HostPlatformEditorOnly=true",
             "-Set:WithLinuxAArch64=false",
             "-Set:WithFeaturePacks=false",
@@ -1713,6 +1713,24 @@ def build_installed_build():
 
     if proc.returncode:
         pbtools.error_state("Failed to build installed engine.")
+
+    local_engine_path = local_builds_path / "Engine"
+    local_build_target = "Windows"
+    editor_verification = get_bundle_verification_file("editor")
+    engine_verification = get_bundle_verification_file("engine")
+    local_engine_target_path = local_engine_path / local_build_target
+
+    unreal_editor_binary = local_engine_target_path / editor_verification
+    if not unreal_editor_binary.exists():
+        pbtools.error_state(
+            f"Expected editor binary not found at {unreal_editor_binary}. Build may have failed."
+        )
+
+    unreal_game_binary = local_engine_target_path / engine_verification
+    if not unreal_game_binary.exists():
+        pbtools.error_state(
+            f"Expected game binary not found at {unreal_game_binary}. Build may have failed."
+        )
 
     with open(build_version_path) as f:
         build_version = json.load(f)
@@ -1731,7 +1749,7 @@ def build_installed_build():
                 str(Path().resolve() / pbinfo.format_repo_folder(longtail_path)),
                 "put",
                 "--source-path",
-                "Windows",
+                local_build_target,
                 "--target-path",
                 f"{uri}lt/{bundle_name}/{version}.json",
                 "--compression-algorithm",
@@ -1753,7 +1771,7 @@ def build_installed_build():
                 env = {"GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"}
             proc = pbtools.run_stream(
                 args,
-                cwd=str(local_builds_path / "Engine"),
+                cwd=str(local_engine_path),
                 env=env,
                 logfunc=pbtools.progress_stream_log,
             )
