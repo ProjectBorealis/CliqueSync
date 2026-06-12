@@ -1331,6 +1331,20 @@ def get_uat_path():
     return None
 
 
+@lru_cache()
+def get_ubt_path():
+    base = get_engine_base_path()
+    if base is not None:
+        platform = get_platform_name()
+        ubt = base / "Engine" / "Build" / "BatchFiles"
+        if platform == "Linux" or platform == "Mac":
+            ubt = ubt / platform / "Build.sh"
+        else:
+            ubt = ubt / "Build.bat"
+        return ubt
+    return None
+
+
 def fill_ddc():
     pbtools.run(
         [
@@ -1388,16 +1402,10 @@ def build_source(for_distribution=True):
             engine_version = get_engine_version_with_prefix()
             if engine_version:
                 download_engine(bundle_name, symbols_needed)
-    base = get_engine_base_path()
-    ubt = base / "Engine" / "Build" / "BatchFiles"
-    platform = get_platform_name()
-    if platform == "Linux" or platform == "Mac":
-        ubt = ubt / platform / "Build.sh"
-    else:
-        ubt = ubt / "Build.bat"
+    ubt = get_ubt_path()
     proc = pbtools.run_stream(
         [
-            ubt,
+            str(ubt),
             platform,
             "Development",
             f"-project={str(get_uproject_path())}",
@@ -1696,11 +1704,11 @@ def build_installed_build():
             f"-Target=Make Installed Build {get_platform_name()}",
             "-Script=Engine/Build/InstalledEngineBuild.xml",
             "-NoP4",
-            "-NoCodeSign",
-            f"-Set:EditorTarget={get_editor_program()}",
+            "-nosign",
             "-Set:HostPlatformEditorOnly=true",
-            "-Set:WithLinuxAArch64=false",
-            "-Set:WithFeaturePacks=false",
+            "-set:GameConfigurations=Development",
+            "-Set:Use2022Toolchain=true",
+            "-Set:AllowParallelExecutor=true",
             "-Set:WithDDC=false",
             "-Set:WithFullDebugInfo=false",
             "-utf8output",
@@ -1713,6 +1721,22 @@ def build_installed_build():
 
     if proc.returncode:
         pbtools.error_state("Failed to build installed engine.")
+
+    ubt = get_ubt_path()
+
+    # build the shader compiler worker
+    proc = pbtools.run_stream(
+        [
+            str(ubt),
+            "ShaderCompileWorker",
+            "Win64",
+            "Development",
+        ],
+        env=env,
+        logfunc=lambda x: pbtools.checked_stream_log(
+            x, error="Error: ", warning="Warning: "
+        ),
+    )
 
     local_engine_path = local_builds_path / "Engine"
     local_build_target = "Windows"
