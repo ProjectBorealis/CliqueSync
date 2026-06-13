@@ -1696,6 +1696,8 @@ def build_installed_build():
     date = now.strftime("%Y%m%d")
     env["uebp_BuildRoot_P4"] = f"{branch_version}-{date}"
 
+    include_game = False
+
     # build the installed engine
     proc = pbtools.run_stream(
         [
@@ -1704,11 +1706,11 @@ def build_installed_build():
             f"-Target=Make Installed Build {get_platform_name()}",
             "-Script=Engine/Build/InstalledEngineBuild.xml",
             "-NoP4",
-            "-nosign",
+            "-NoSign",
             "-Set:HostPlatformEditorOnly=true",
-            "-set:GameConfigurations=Development",
-            "-Set:Use2022Toolchain=true",
+            f"-Set:GameConfigurations={'Development' if include_game else ''}",
             "-Set:AllowParallelExecutor=true",
+            "-Set:SignWindowsExecutablesInParallel=true",
             "-Set:WithDDC=false",
             "-Set:WithFullDebugInfo=false",
             "-utf8output",
@@ -1755,7 +1757,7 @@ def build_installed_build():
     unreal_game_binary = (
         local_engine_target_path / f"{engine_verification}{get_exe_ext()}"
     )
-    if not unreal_game_binary.exists():
+    if include_game and not unreal_game_binary.exists():
         pbtools.error_state(
             f"Expected game binary not found at {unreal_game_binary}. Build may have failed."
         )
