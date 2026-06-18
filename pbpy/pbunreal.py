@@ -853,6 +853,11 @@ longtail_path = "\\longtail\\longtail.exe"
 
 
 @lru_cache()
+def get_longtail_path():
+    return pbinfo.format_repo_folder(longtail_path)
+
+
+@lru_cache()
 def get_bundle():
     bundle_name = (
         pbconfig.get("uev_ci_bundle")
@@ -1097,7 +1102,7 @@ def download_engine(bundle_name: str, download_symbols: bool):
                     "Version change detected, running full (slow) update with validation."
                 )
                 args = [
-                    pbinfo.format_repo_folder(longtail_path),
+                    get_longtail_path(),
                     "get",
                     "--source-path",
                     f"{gcs_bucket}lt/{bundle_name}/{version}.json",
@@ -1120,7 +1125,7 @@ def download_engine(bundle_name: str, download_symbols: bool):
 
             # fast, cached version. we always run this option so we fill in the cache.
             args = [
-                pbinfo.format_repo_folder(longtail_path),
+                get_longtail_path(),
                 "get",
                 "--source-path",
                 f"{gcs_bucket}lt/{bundle_name}/{version}.json",
@@ -1776,7 +1781,7 @@ def build_installed_build():
                 pbtools.error_state("No valid cloud storage URI configured.")
                 return
             args = [
-                str(Path().resolve() / pbinfo.format_repo_folder(longtail_path)),
+                str(Path().resolve() / get_longtail_path()),
                 "put",
                 "--source-path",
                 local_build_target,

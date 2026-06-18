@@ -235,13 +235,8 @@ def pull_binaries(version_number: str, pass_checksum=False):
             if uses_longtail_cfg:
                 # Longtail fast incremental download
                 longtail_path = pbunreal.get_longtail_path()
-                if not longtail_path:
-                    pblog.error(
-                        "Longtail not found but required for binary cloud storage."
-                    )
-                    return 1
 
-                project_name = pbconfig.get("project_name", "UnknownProject")
+                project_name = pbconfig.get("project_name")
                 args = [
                     pbinfo.format_repo_folder(longtail_path),
                     "get",

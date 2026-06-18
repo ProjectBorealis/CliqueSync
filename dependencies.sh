@@ -6,5 +6,5 @@ PATH="$HOME/.local/bin:$PATH"
 export PATH
 
 python -m pip install -U pip
-python -m pip install -U setuptools wheel
-pip install -Ur requirements-linux.txt
+python -m pip install -U pipenv
+python -m pipenv install

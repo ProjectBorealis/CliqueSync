@@ -21,6 +21,7 @@ pywin32 = {version = "*", sys_platform = "== 'win32'"}
 pefile = {version = "*", sys_platform = "== 'win32'"}
 "pywin32-ctypes" = {version = "*", sys_platform = "== 'win32'"}
 steam = {extras = ["client"], version = "*"}
+watchdog = "*"
 
 [requires]
 python_version = "3.14"
