@@ -31,7 +31,6 @@
     </log>
     <publish>
         <publisher>butler</publisher>
-        <stagedir>Saved/StagedBuilds</stagedir>
     </publish>
     <butler>
         <project>user/project</project>

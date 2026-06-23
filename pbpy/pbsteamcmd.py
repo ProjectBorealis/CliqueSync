@@ -9,7 +9,7 @@ import gevent
 import steam.protobufs.steammessages_partnerapps_pb2  # noqa: F401 - don't remove
 from steam.client import SteamClient
 
-from pbpy import pbconfig, pbinfo, pblog, pbtools
+from pbpy import pbconfig, pbinfo, pblog, pbtools, pbunreal
 
 drm_upload_regex = re.compile(
     r"https:\/\/partnerupload\.steampowered\.com\/upload\/(\d+)"
@@ -85,8 +85,6 @@ def publish_build(
     publish_stagedir,
     app_script,
     drm_app_id,
-    drm_exe_path,
-    drm_useonprem,
 ):
     # Test if our configuration values exist
     if not app_script:
@@ -100,6 +98,25 @@ def publish_build(
         pbconfig.get_user("steamcmd", "username"),
         pbconfig.get_user("steamcmd", "password"),
     ]
+
+    stagedir = Path(publish_stagedir)
+    uproject_name = Path(pbunreal.get_uproject_name()).stem
+    platform_name = pbunreal.get_platform_name()
+    exe_ext = pbunreal.get_exe_ext()
+    drm_exe_dir = stagedir / "Windows" / uproject_name / "Binaries" / platform_name
+    search = f"{uproject_name}-{platform_name}*{exe_ext}"
+    drm_exe_path = None
+    if drm_exe_dir.is_dir():
+        drm_exe_path = next(
+            drm_exe_dir.glob(search),
+            None,
+        )
+
+    if not drm_exe_path or not drm_exe_path.is_file():
+        pblog.error(
+            f"Target staged binaries does not exist at {drm_exe_dir.as_posix()}/{search}."
+        )
+        return False
 
     drm_active = False
     drm_id = None
@@ -115,7 +132,10 @@ def publish_build(
             if log.startswith("Uploading") and "partnerupload" in log:
                 search = drm_upload_regex.search(log)
                 drm_id = search.group(1)
-            if log == "DRM wrap failed with EResult 3 (No Connection)":
+            if (
+                log == "DRM wrap failed with EResult 3 (No Connection)"
+                or log == "DRM wrap failed with EResult 16 (Timeout)"
+            ):
                 drm_download_failed = True
         pblog.info("[steamcmd] " + log)
 
@@ -139,7 +159,6 @@ def publish_build(
                 orig_file.write(nondrm_bytes)
 
     if drm_app_id and drm_exe_path:
-        drm_exe_path = Path(drm_exe_path)
         if not drm_exe_path.is_absolute():
             drm_exe_path = (
                 Path(pbconfig.config_filepath).parent / drm_exe_path
@@ -148,7 +167,7 @@ def publish_build(
             pblog.error("steamcmd/drm/targetbinary does not exist.")
             return False
         thirdparty_path = Path(pbinfo.format_repo_folder("/thirdpartylegalnotices.txt"))
-        thirdparty_dst = Path(publish_stagedir)
+        thirdparty_dst = stagedir
         if thirdparty_path.exists():
             for dst in thirdparty_dst.glob("*/"):
                 shutil.copy(thirdparty_path, dst)
@@ -168,7 +187,6 @@ def publish_build(
                 str(drm_output),
                 "drmtoolp",
                 "6",
-                "local" if drm_useonprem else "cloud",
                 "+quit",
             ]
         )  # the drm wrap command https://partner.steamgames.com/doc/features/drm
