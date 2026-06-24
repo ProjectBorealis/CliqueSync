@@ -1,17 +1,18 @@
 import configparser
 import itertools
 import os
-from functools import lru_cache
+from pathlib import Path
 from xml.etree.ElementTree import parse
 
-from pbpy import pbtools
-from pbpy import pblog
+from pbpy import pblog, pbtools
 
 # Singleton Config and path to said config
 config: dict[str, str | list[str] | list[dict[str, str]] | bool] | None = None
 config_filepath = None
 
 user_config = None
+global_user_config = None
+project_user_config = None
 
 
 def validated_get(key):
@@ -65,10 +66,39 @@ def get(key):
     return val
 
 
-@lru_cache()
-def get_user_config_filename():
+def get_global_user_config_filename():
     config_key = "ci_config" if get("is_ci") else "user_config"
     return get(config_key)
+
+
+def get_project_user_config_filename():
+    try:
+        # prevent circular imports
+        from pbpy import pbunreal
+
+        uproject_name = pbunreal.get_uproject_name()
+        if uproject_name:
+            uproject_path = pbunreal.get_uproject_path()
+            project_dir = uproject_path.parent
+
+            global_file = get_global_user_config_filename()
+            basename = Path(global_file).name
+            project_config_path = project_dir / basename
+            resolved_project_config_path = project_config_path.resolve()
+            global_path = Path(global_file).resolve()
+            if resolved_project_config_path != global_path:
+                if resolved_project_config_path.exists():
+                    return str(resolved_project_config_path)
+    except Exception:
+        pass
+    return None
+
+
+def get_user_config_filename():
+    project_file = get_project_user_config_filename()
+    if project_file:
+        return project_file
+    return get_global_user_config_filename()
 
 
 class CustomConfigParser(configparser.ConfigParser):
@@ -76,6 +106,28 @@ class CustomConfigParser(configparser.ConfigParser):
         if key != self.default_section and not self.has_section(key):
             self.add_section(key)
         return super().__getitem__(key)
+
+
+class MergedConfigParser(CustomConfigParser):
+    def __init__(self, global_parser, project_parser, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.global_parser = global_parser
+        self.project_parser = project_parser
+        self._update_from_parsers()
+
+    def _update_from_parsers(self):
+        self.clear()
+        for section in self.global_parser.sections():
+            if not self.has_section(section):
+                self.add_section(section)
+            for option, value in self.global_parser.items(section):
+                self[section][option] = value
+        if self.project_parser:
+            for section in self.project_parser.sections():
+                if not self.has_section(section):
+                    self.add_section(section)
+                for option, value in self.project_parser.items(section):
+                    self[section][option] = value
 
 
 class MultiConfigParser(CustomConfigParser):
@@ -126,16 +178,35 @@ class CustomInterpolation(configparser.BasicInterpolation):
         value: str,
         defaults: configparser._Section,
     ) -> str:
-        val = super().before_get(parser, section, option, value, defaults)
         if get("is_ci"):
-            return os.getenv(val) or ""
-        return val
+            return os.getenv(value) or ""
+        return value
+
+    def before_set(self, parser, section, option, value):
+        return value
 
 
 def init_user_config():
-    global user_config
-    user_config = CustomConfigParser(interpolation=CustomInterpolation())
-    user_config.read(get_user_config_filename())
+    global user_config, global_user_config, project_user_config
+
+    global_user_config = CustomConfigParser(interpolation=CustomInterpolation())
+    global_file = get_global_user_config_filename()
+    if global_file and os.path.exists(global_file):
+        global_user_config.read(global_file)
+
+    project_file = get_project_user_config_filename()
+    if project_file:
+        project_user_config = CustomConfigParser(interpolation=CustomInterpolation())
+        project_user_config.read(project_file)
+        pblog.info(
+            f"Loading project-specific user config: {project_file}. This config will overlay on top of the global user config: {global_file}"
+        )
+    else:
+        project_user_config = None
+
+    user_config = MergedConfigParser(
+        global_user_config, project_user_config, interpolation=CustomInterpolation()
+    )
 
 
 def get_user_config():
@@ -148,24 +219,58 @@ def get_user(section, key, default=None):
     return get_user_config().get(section, key, fallback=default)
 
 
+def write_config_file(filename, parser):
+    if parser is None:
+        return
+    attributes = 0
+    restore_hidden = False
+    if os.name == "nt" and os.path.exists(filename):
+        import win32api
+        import win32con
+
+        attributes = win32api.GetFileAttributes(filename)
+        restore_hidden = attributes & win32con.FILE_ATTRIBUTE_HIDDEN
+        win32api.SetFileAttributes(
+            filename, attributes & ~win32con.FILE_ATTRIBUTE_HIDDEN
+        )
+
+    parent_dir = os.path.dirname(filename)
+    if parent_dir and not os.path.exists(parent_dir):
+        os.makedirs(parent_dir, exist_ok=True)
+
+    with open(filename, "w") as config_file:
+        parser.write(config_file)
+
+    if restore_hidden:
+        win32api.SetFileAttributes(filename, attributes)
+
+
 def shutdown():
     if not get("is_ci") and user_config is not None:
-        user_filename = get_user_config_filename()
-        attributes = 0
-        restore_hidden = False
-        if os.name == "nt" and os.path.exists(user_filename):
-            import win32api
-            import win32con
+        global global_user_config, project_user_config
+        # Propagate changes from merged user_config back to underlying parsers
+        for section in user_config.sections():
+            for option, value in user_config.items(section):
+                if project_user_config is not None:
+                    if project_user_config.has_option(
+                        section, option
+                    ) or not global_user_config.has_option(section, option):
+                        if not project_user_config.has_section(section):
+                            project_user_config.add_section(section)
+                        project_user_config[section][option] = value
+                        continue
 
-            attributes = win32api.GetFileAttributes(user_filename)
-            restore_hidden = attributes & win32con.FILE_ATTRIBUTE_HIDDEN
-            win32api.SetFileAttributes(
-                user_filename, attributes & ~win32con.FILE_ATTRIBUTE_HIDDEN
-            )
-        with open(user_filename, "w") as user_config_file:
-            user_config.write(user_config_file)
-        if restore_hidden:
-            win32api.SetFileAttributes(user_filename, attributes)
+                if not global_user_config.has_section(section):
+                    global_user_config.add_section(section)
+                global_user_config[section][option] = value
+
+        global_file = get_global_user_config_filename()
+        if global_file:
+            write_config_file(global_file, global_user_config)
+
+        project_file = get_project_user_config_filename()
+        if project_file:
+            write_config_file(project_file, project_user_config)
 
 
 def generate_config(config_path, parser_func):

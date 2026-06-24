@@ -479,7 +479,7 @@ def generate_release():
             pblog.info(f"Uploading binaries via Longtail to {bucket_uri}/{version}...")
 
             # Using run() so stdout streams directly to user
-            proc = pbtools.run(args, env=env)
+            proc = pbtools.run(args, env=env, priority="below_normal")
             if proc.returncode != 0:
                 pbtools.error_state("Failed to upload binaries using Longtail.")
             else:

@@ -771,6 +771,9 @@ def get_uproject_name() -> str:
 def select_uproject_name(uproject_file: str):
     global selected_uproject
     selected_uproject = uproject_file
+    get_uproject_name.cache_clear()
+    get_uproject_path.cache_clear()
+    pbconfig.init_user_config()
 
 
 @lru_cache()
@@ -1036,7 +1039,7 @@ def download_engine(bundle_name: str, download_symbols: bool):
 
             command_set.append("-assume-valid")
             command_set.append("-user-config")
-            command_set.append(pbconfig.get("user_config"))
+            command_set.append(pbconfig.get_user_config_filename())
 
             if bundle_name is not None:
                 command_set.append("-bundle")
@@ -1057,7 +1060,7 @@ def download_engine(bundle_name: str, download_symbols: bool):
                             user_config[section][key] = val
                         else:
                             user_config.remove_option(section, key)
-                with open(pbconfig.get("user_config"), "w") as user_config_file:
+                with open(pbconfig.get_user_config_filename(), "w") as user_config_file:
                     pbconfig.get_user_config().write(user_config_file)
 
             if pbtools.run(command_set).returncode != 0:
@@ -1096,6 +1099,16 @@ def download_engine(bundle_name: str, download_symbols: bool):
                     )
                 return env
 
+            if (
+                pbconfig.get_user_config_filename()
+                != pbconfig.get_global_user_config_filename()
+            ):
+                uproject_name = get_uproject_name()
+                project_name = Path(uproject_name).stem if uproject_name else ""
+                cache_path = f"Saved/longtail/cache/{bundle_name}"
+                if project_name:
+                    cache_path = f"Saved/longtail_{project_name}/cache/{bundle_name}"
+
             if branch_version and get_engine_version_with_prefix() != branch_version:
                 # verify a new version install
                 pblog.info(
@@ -1109,7 +1122,7 @@ def download_engine(bundle_name: str, download_symbols: bool):
                     "--target-path",
                     str(base_path),
                     "--cache-path",
-                    f"Saved/longtail/cache/{bundle_name}",
+                    cache_path,
                     "--no-cache-target-index",
                     "--validate",
                     "--enable-file-mapping",
@@ -1119,6 +1132,7 @@ def download_engine(bundle_name: str, download_symbols: bool):
                     args,
                     env=env,
                     logfunc=pbtools.progress_stream_log,
+                    priority="below_normal",
                 )
                 # print out a newline
                 print("")
@@ -1132,7 +1146,7 @@ def download_engine(bundle_name: str, download_symbols: bool):
                 "--target-path",
                 str(base_path),
                 "--cache-path",
-                f"Saved/longtail/cache/{bundle_name}",
+                cache_path,
                 "--enable-file-mapping",
             ]
             env = change_args(args)
@@ -1140,6 +1154,7 @@ def download_engine(bundle_name: str, download_symbols: bool):
                 args,
                 env=env,
                 logfunc=pbtools.progress_stream_log,
+                priority="below_normal",
             )
             # print out a newline
             print("")
@@ -1809,6 +1824,7 @@ def build_installed_build():
                 cwd=str(local_engine_path),
                 env=env,
                 logfunc=pbtools.progress_stream_log,
+                priority="below_normal",
             )
             # print out a new line
             print("")

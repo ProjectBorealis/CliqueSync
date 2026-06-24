@@ -50,22 +50,51 @@ def parse_environment(stdout, env_out):
             os.environ[k] = v.strip('"')
 
 
-def run(cmd, env=None, cwd=None):
+def get_priority_flag(priority):
+    if os.name != "nt" or not priority:
+        return 0
+    p = priority.lower()
+    if p == "below_normal":
+        return subprocess.BELOW_NORMAL_PRIORITY_CLASS
+    elif p == "idle" or p == "low":
+        return subprocess.IDLE_PRIORITY_CLASS
+    elif p == "above_normal":
+        return subprocess.ABOVE_NORMAL_PRIORITY_CLASS
+    elif p == "high":
+        return subprocess.HIGH_PRIORITY_CLASS
+    return 0
+
+
+def run(cmd, env=None, cwd=None, priority=None):
     if os.name == "posix":
         cmd = " ".join(cmd) if isinstance(cmd, list) else cmd
 
     env = handle_env(env)
-    return subprocess.run(cmd, shell=True, env=env, cwd=cwd)
+    extra_args = {}
+    flag = get_priority_flag(priority)
+    if flag:
+        extra_args["creationflags"] = flag
+    return subprocess.run(cmd, shell=True, env=env, cwd=cwd, **extra_args)
 
 
-def run_with_output(cmd, env=None, env_out=None):
+def run_with_output(cmd, env=None, env_out=None, priority=None):
     handle_env_out(cmd, env_out)
     if os.name == "posix":
         cmd = " ".join(cmd) if isinstance(cmd, list) else cmd
 
     env = handle_env(env)
+    extra_args = {}
+    flag = get_priority_flag(priority)
+    if flag:
+        extra_args["creationflags"] = flag
     proc = subprocess.run(
-        cmd, capture_output=True, text=True, shell=True, env=env, errors="replace"
+        cmd,
+        capture_output=True,
+        text=True,
+        shell=True,
+        env=env,
+        errors="replace",
+        **extra_args,
     )
     parse_environment(proc.stdout, env_out)
     return proc
@@ -103,7 +132,7 @@ def progress_stream_log(msg, error="error", warning="warning"):
         print(f"{msg}", end="\r", flush=True)
 
 
-def run_stream(cmd, env=None, logfunc=None, cwd=None):
+def run_stream(cmd, env=None, logfunc=None, cwd=None, priority=None):
     if logfunc is None:
         logfunc = default_stream_log
 
@@ -115,6 +144,10 @@ def run_stream(cmd, env=None, logfunc=None, cwd=None):
         startupinfo = subprocess.STARTUPINFO(dwFlags=subprocess.CREATE_NEW_CONSOLE)
 
     env = handle_env(env)
+    extra_args = {}
+    flag = get_priority_flag(priority)
+    if flag:
+        extra_args["creationflags"] = flag
     proc = subprocess.Popen(
         cmd,
         text=True,
@@ -127,6 +160,7 @@ def run_stream(cmd, env=None, logfunc=None, cwd=None):
         startupinfo=startupinfo,
         encoding="utf8",
         errors="replace",
+        **extra_args,
     )
     returncode = None
     while True:
@@ -141,12 +175,16 @@ def run_stream(cmd, env=None, logfunc=None, cwd=None):
     return proc
 
 
-def run_with_stdin(cmd, input, env=None, env_out=None):
+def run_with_stdin(cmd, input, env=None, env_out=None, priority=None):
     handle_env_out(cmd, env_out)
     if os.name == "posix":
         cmd = " ".join(cmd) if isinstance(cmd, list) else cmd
 
     env = handle_env(env)
+    extra_args = {}
+    flag = get_priority_flag(priority)
+    if flag:
+        extra_args["creationflags"] = flag
     proc = subprocess.run(
         cmd,
         input=input,
@@ -155,17 +193,22 @@ def run_with_stdin(cmd, input, env=None, env_out=None):
         shell=True,
         env=env,
         errors="replace",
+        **extra_args,
     )
     parse_environment(proc.stdout, env_out)
     return proc
 
 
-def run_with_combined_output(cmd, env=None, env_out=None):
+def run_with_combined_output(cmd, env=None, env_out=None, priority=None):
     handle_env_out(cmd, env_out)
     if os.name == "posix":
         cmd = " ".join(cmd) if isinstance(cmd, list) else cmd
 
     env = handle_env(env)
+    extra_args = {}
+    flag = get_priority_flag(priority)
+    if flag:
+        extra_args["creationflags"] = flag
     proc = subprocess.run(
         cmd,
         text=True,
@@ -174,19 +217,25 @@ def run_with_combined_output(cmd, env=None, env_out=None):
         stderr=subprocess.STDOUT,
         env=env,
         errors="replace",
+        **extra_args,
     )
     parse_environment(proc.stdout, env_out)
     return proc
 
 
-def run_non_blocking(*commands):
+def run_non_blocking(*commands, priority=None):
     if os.name == "nt":
         cmdline = " & ".join(commands)
+        creationflags = (
+            subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+        )
+        flag = get_priority_flag(priority)
+        if flag:
+            creationflags |= flag
         subprocess.Popen(
             cmdline,
             shell=True,
-            creationflags=subprocess.DETACHED_PROCESS
-            | subprocess.CREATE_NEW_PROCESS_GROUP,
+            creationflags=creationflags,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -204,18 +253,23 @@ def run_non_blocking(*commands):
         )
 
 
-def run_non_blocking_ex(cmd, env=None):
+def run_non_blocking_ex(cmd, env=None, priority=None):
     if os.name == "posix":
         cmd.insert("nohup", 0)
         cmd = " ".join(cmd) if isinstance(cmd, list) else cmd
 
     env = handle_env(env)
     if os.name == "nt":
+        creationflags = (
+            subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+        )
+        flag = get_priority_flag(priority)
+        if flag:
+            creationflags |= flag
         subprocess.Popen(
             cmd,
             shell=True,
-            creationflags=subprocess.DETACHED_PROCESS
-            | subprocess.CREATE_NEW_PROCESS_GROUP,
+            creationflags=creationflags,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
