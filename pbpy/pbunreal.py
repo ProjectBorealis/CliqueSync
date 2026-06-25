@@ -205,7 +205,9 @@ def project_version_increase(increase_type):
 def require_engine_version(major: int, minor: int) -> bool:
     engine_association = get_engine_association()
     if engine_association.startswith(uev_prefix):
-        version = pbconfig.get("engine_base_version")
+        full_uev_version = engine_association.replace(uev_prefix, "")
+        engine_base_version = full_uev_version.split("-")[0]
+        version = engine_base_version
     else:
         version = engine_association
     if version is None:
@@ -224,8 +226,10 @@ def require_engine_version(major: int, minor: int) -> bool:
 
 
 @lru_cache()
-def get_engine_prefix() -> str:
-    return f"{pbconfig.get('engine_base_version')}-{get_engine_version_prefix()}"
+def get_engine_prefix(engine_base_version: str | None = None) -> str:
+    if engine_base_version is None:
+        engine_base_version = str(pbconfig.get("engine_base_version"))
+    return f"{engine_base_version}-{get_engine_version_prefix()}"
 
 
 @lru_cache()
@@ -237,20 +241,23 @@ def get_engine_association():
 
 
 @lru_cache()
-def get_engine_version():
+def get_engine_version(with_prefix: bool = False):
     try:
         engine_association = get_engine_association()
         if not engine_association.startswith(uev_prefix):
             # not managed by ueversionator
             return None
-        build_version = engine_association.replace(
-            f"{uev_prefix}{get_engine_prefix()}-", ""
-        )
+        full_uev_version = engine_association.replace(uev_prefix, "")
+        engine_base_version = full_uev_version.split("-")[0]
+        engine_prefix = get_engine_prefix(engine_base_version)
+        build_version = full_uev_version.replace(f"{engine_prefix}-", "")
 
         if "}" in build_version:
             # Means we're using local build version in .uproject file
             return None
 
+        if with_prefix:
+            return f"{engine_prefix}-{build_version}"
         return build_version
     except Exception as e:
         pblog.exception(str(e))
@@ -259,10 +266,7 @@ def get_engine_version():
 
 @lru_cache()
 def get_engine_version_with_prefix():
-    engine_ver_number = get_engine_version()
-    if engine_ver_number is not None:
-        return f"{get_engine_prefix()}-{engine_ver_number}"
-    return None
+    return get_engine_version(with_prefix=True)
 
 
 use_source_dir = True
@@ -914,6 +918,7 @@ def download_engine(bundle_name: str, download_symbols: bool):
             [pbgit.get_git_executable(), "-C", str(root), "branch", "--show-current"]
         )
         if pbconfig.get("versioned_branch"):
+            # todo: checkout version based on uproject
             base_branch = get_engine_prefix()
         else:
             base_branch = f"{get_engine_version_prefix()}-main".lower()
