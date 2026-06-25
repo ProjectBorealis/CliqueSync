@@ -1099,13 +1099,13 @@ def download_engine(bundle_name: str, download_symbols: bool):
                     )
                 return env
 
+            cache_path = f"Saved/longtail/cache/{bundle_name}"
             if (
                 pbconfig.get_user_config_filename()
                 != pbconfig.get_global_user_config_filename()
             ):
                 uproject_name = get_uproject_name()
                 project_name = Path(uproject_name).stem if uproject_name else ""
-                cache_path = f"Saved/longtail/cache/{bundle_name}"
                 if project_name:
                     cache_path = f"Saved/longtail_{project_name}/cache/{bundle_name}"
 
