@@ -786,6 +786,9 @@ def get_uproject_path():
 
 
 def generate_project_files():
+    source_dir = get_uproject_path().parent / "Source"
+    if not source_dir.is_dir():
+        return
     selector_path, is_custom = get_unreal_version_selector_path()
     if not selector_path or not selector_path.exists():
         pbtools.error_state(

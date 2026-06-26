@@ -38,6 +38,8 @@ def is_on_expected_branch():
         return True
     elif binaries_mode == "local" or binaries_mode == "build" or binaries_mode == "off":
         return False
+    if not Path(".git").exists():
+        return True
     for expected_branch in pbconfig.get("expected_branch_names"):
         if compare_with_current_branch_name(expected_branch):
             return True
