@@ -597,7 +597,9 @@ def maintain_repo():
                 try:
                     pbuac.runAsAdmin(cmdline)
                 except OSError:
-                    pblog.error("User declined permission. Automatic delete failed.")
+                    pblog.error(
+                        "User declined permission. Automatic Git for Windows Updater deletetion failed."
+                    )
             else:
                 proc = run_with_combined_output(cmdline)
 

@@ -420,7 +420,9 @@ class GitLFSPrereq(VersionedPrereq):
             try:
                 pbuac.runAsAdmin(delete_cmdline)
             except OSError:
-                pblog.error("User declined permission. Automatic delete failed.")
+                pblog.error(
+                    "User declined permission. Automatic bundled Git LFS deleted failed."
+                )
 
         # Verify deletion; if any remain, we must stop and ask user to remove
         for delete_path in delete_paths:
@@ -494,7 +496,7 @@ class GitLFSPrereq(VersionedPrereq):
                                     pbuac.runAsAdmin(move_cmdline)
                                 except OSError:
                                     pblog.error(
-                                        "User declined permission. Automatic move failed."
+                                        "User declined permission. Automatic Git LFS installation move failed."
                                     )
                                     pblog.error(
                                         f"Git LFS is installed to a different location, overriding your installed version. Please install Git LFS to {main_lfs_path.parents[1]}."

@@ -757,7 +757,9 @@ def run_unreal_setup():
         try:
             pbuac.runAsAdmin(cmdline)
         except OSError:
-            pblog.error("User declined permission. Automatic install failed.")
+            pblog.error(
+                "User declined permission. Automatic Unreal Engine file association registration failed."
+            )
     else:
         pbtools.run(cmdline)
 
