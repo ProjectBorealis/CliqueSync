@@ -3,7 +3,6 @@
     <project>
         <enginebaseversion>5.0</enginebaseversion>
         <uprojectname>SampleProject.uproject</uprojectname>
-        <defaultgameinipath>Config/DefaultGame.ini</defaultgameinipath>
         <userconfig>.user-sync</userconfig>
         <ciconfig>.ci-sync</ciconfig>
         <packagepdbs>True</packagepdbs>

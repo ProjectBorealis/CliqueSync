@@ -87,7 +87,7 @@ def sync_handler(sync_val: str):
         if binaries_mode == "build":
             sync_workflow.append(actions.build_local)
 
-        sync_workflow.append(actions.setup_unreal_git)
+        sync_workflow.append(actions.setup_unreal_revision_control)
         sync_workflow.append(actions.lfs_unlock_thread)
         sync_workflow.append(actions.launch_project)
     elif sync_val == "binaries":
@@ -405,6 +405,7 @@ def main(argv):
                 "your support contact",
                 True,
             ),
+            "p4_server": ("p4/server", None, "", True),
         }
 
         missing_keys = []

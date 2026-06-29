@@ -397,8 +397,9 @@ def check_ue_file_association():
 
 
 def check_ddc_folder_created():
-    ddc_path = os.path.join(os.getcwd(), ddc_folder_name)
-    return os.path.isdir(ddc_path)
+    project_folder = get_uproject_path().parent
+    ddc_path = project_folder / ddc_folder_name
+    return ddc_path.is_dir()
 
 
 def generate_ddc_data():
@@ -1213,6 +1214,8 @@ class multi_dict(dict):
 
 @contextlib.contextmanager
 def ue_config(path):
+    project_folder = get_uproject_path().parent
+    path = project_folder / path
     config = pbconfig.MultiConfigParser(
         allow_no_value=True,
         delimiters=("=",),
@@ -1245,6 +1248,14 @@ def ue_config(path):
 
 
 def update_source_control():
+    provider = pbconfig.get("git_provider")
+    if provider == "p4":
+        update_p4_source_control()
+    else:
+        update_git_source_control()
+
+
+def update_git_source_control():
     editor_plat = get_editor_platform()
     with ue_config(
         f"Saved/Config/{editor_plat}/SourceControlSettings.ini"
@@ -1275,6 +1286,29 @@ def update_source_control():
         editor_config["/Script/UnrealEd.EditorLoadingSavingSettings"][
             "TextDiffToolPath"
         ] = f'(FilePath="{p4merge}")'
+
+
+def update_p4_source_control():
+    editor_plat = get_editor_platform()
+    with ue_config(
+        f"Saved/Config/{editor_plat}/SourceControlSettings.ini"
+    ) as source_control_config:
+        source_control_config["SourceControl.SourceControlSettings"][
+            "Provider"
+        ] = "Perforce"
+        perforce = source_control_config[
+            "PerforceSourceControl.PerforceSourceControlSettings"
+        ]
+        perforce["UseP4Config"] = "False"
+        p4_server = pbconfig.get("p4_server")
+        if p4_server:
+            perforce["Port"] = p4_server
+        p4_user = pbconfig.get_user("p4", "username", default="")
+        if p4_user:
+            perforce["UserName"] = p4_user
+        p4_ws = pbconfig.get_user("p4", "workspace", default="")
+        if p4_ws:
+            perforce["Workspace"] = p4_ws
 
 
 # we will either error out, or succeed, so this won't matter
@@ -1393,12 +1427,13 @@ def upload_cloud_ddc():
         pbtools.error_state("Unable to determine location of Unreal Automation Tool.")
         return
 
+    project_folder = get_uproject_path().parent
     credentials = str(Path("Build/credentials").resolve())
-    access_logs = str(Path("Saved/AccessLogs").resolve())
-    cache = Path("DerivedDataCache")
+    access_logs = str(project_folder / Path("Saved/AccessLogs").resolve())
+    cache = project_folder / Path(ddc_folder_name)
     root = get_engine_base_path()
     cache = str(cache.resolve())
-    manifest = str(Path("Build/DDC.json").resolve())
+    manifest = str(project_folder / Path("Build/DDC.json").resolve())
     manifest = os.path.relpath(manifest, start=root)
     # for some reason https://storage.googleapis.com doesn't work, so we have to settle for domain-named nesting...
     # we upload to a ServiceURL bucket.com -> storage.googleapis.com/bucket.com
@@ -1455,7 +1490,8 @@ def build_source(for_distribution=True):
 
 
 def clear_cook_cache():
-    shutil.rmtree("Saved/Cooked", ignore_errors=True)
+    project_folder = get_uproject_path().parent
+    shutil.rmtree(project_folder / "Saved/Cooked", ignore_errors=True)
 
 
 def build_shaders(platform: str = "PCD3D_SM6"):
@@ -1625,7 +1661,8 @@ def inspect_source(all=False):
     pblog.info(f"Unpacking Resharper {version}")
     shutil.unpack_archive(str(zip_path), str(resharper_dir))
     resharper_exe = resharper_dir / Path("inspectcode.exe")
-    inspect_file = "Saved/InspectionResults.txt"
+    project_folder = get_uproject_path().parent
+    inspect_file = str(project_folder / "Saved/InspectionResults.txt")
     pblog.info(f"Running Resharper {version}")
     plat = get_platform_name()
     proc = pbtools.run_stream(
