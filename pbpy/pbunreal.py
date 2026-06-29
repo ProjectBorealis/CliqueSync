@@ -1245,8 +1245,9 @@ def ue_config(path):
 
 
 def update_source_control():
+    editor_plat = get_editor_platform()
     with ue_config(
-        "Saved/Config/Windows/SourceControlSettings.ini"
+        f"Saved/Config/{editor_plat}/SourceControlSettings.ini"
     ) as source_control_config:
         source_control_config["SourceControl.SourceControlSettings"][
             "Provider"
@@ -1268,7 +1269,7 @@ def update_source_control():
                 f"Credential retrieval failed. Please get help from {pbconfig.get('support_channel')}."
             )
     with ue_config(
-        "Saved/Config/Windows/EditorPerProjectUserSettings.ini"
+        f"Saved/Config/{editor_plat}/EditorPerProjectUserSettings.ini"
     ) as editor_config:
         p4merge = str(Path(pbinfo.format_repo_folder(p4merge_path)).resolve())
         editor_config["/Script/UnrealEd.EditorLoadingSavingSettings"][
@@ -1461,14 +1462,15 @@ def build_shaders(platform: str = "PCD3D_SM6"):
     uproject_path = get_uproject_path()
     project_name = uproject_path.stem
     project_path = str(uproject_path.parent)
+    game_plat = get_game_platform()
     args = [
         str(get_editor_path()),
         str(uproject_path),
         "-run=ShaderPipelineCacheTools",
         "expand",
-        f"{project_path}/Saved/StagedBuilds/Windows/{project_name}/Saved/CollectedPSOs/*.rec.upipelinecache",
+        f"{project_path}/Saved/StagedBuilds/{game_plat}/{project_name}/Saved/CollectedPSOs/*.rec.upipelinecache",
         f"{project_path}/Saved/Shaders/{platform}/*.shk",
-        f"{project_path}/Build/Windows/PipelineCaches/PSO_{project_name}_{platform}.spc",
+        f"{project_path}/Build/{game_plat}/PipelineCaches/PSO_{project_name}_{platform}.spc",
     ]
     pbtools.run_stream(
         args,
@@ -1523,11 +1525,33 @@ def build_game(configuration="Shipping"):
 
 
 platform_names = {"Windows": "Win64", "Darwin": "Mac", "Linux": "Linux"}
+target_platform_names = {"Windows": "Windows", "Darwin": "Mac", "Linux": "Linux"}
 
 
 @lru_cache()
 def get_platform_name():
     return platform_names[platform.system()]
+
+
+@lru_cache()
+def get_target_platform_name():
+    return target_platform_names[platform.system()]
+
+
+@lru_cache()
+def get_editor_platform():
+    plat = get_target_platform_name()
+    if is_ue5():
+        return f"{plat}Editor"
+    return plat
+
+
+@lru_cache()
+def get_game_platform():
+    plat = get_target_platform_name()
+    if is_ue5():
+        return plat
+    return f"{plat}NoEditor"
 
 
 binaries_paths = ["Binaries", "Plugins/**/Binaries"]
@@ -1603,12 +1627,13 @@ def inspect_source(all=False):
     resharper_exe = resharper_dir / Path("inspectcode.exe")
     inspect_file = "Saved/InspectionResults.txt"
     pblog.info(f"Running Resharper {version}")
+    plat = get_platform_name()
     proc = pbtools.run_stream(
         [
             str(resharper_exe),
             str(get_sln_path()),
             "--no-swea",
-            "--properties:Platform=Win64;Configuration=Development Editor",
+            f"--properties:Platform={plat};Configuration=Development Editor",
             f"--include={modified_files_list}",
             f"--project={get_base_name()}",
             "-f=Text",  # TODO: maybe switch to XML for more robust parsing?
@@ -1755,13 +1780,14 @@ def build_installed_build():
         pbtools.error_state("Failed to build installed engine.")
 
     ubt = get_ubt_path()
+    plat = get_platform_name()
 
     # build the shader compiler worker
     proc = pbtools.run_stream(
         [
             str(ubt),
             "ShaderCompileWorker",
-            "Win64",
+            plat,
             "Development",
         ],
         env=env,
@@ -1771,7 +1797,7 @@ def build_installed_build():
     )
 
     local_engine_path = local_builds_path / "Engine"
-    local_build_target = "Windows"
+    local_build_target = get_target_platform_name()
     editor_verification = get_bundle_verification_file("editor")
     local_engine_target_path = local_engine_path / local_build_target
 

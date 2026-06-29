@@ -102,8 +102,9 @@ def publish_build(
     stagedir = Path(publish_stagedir)
     uproject_name = Path(pbunreal.get_uproject_name()).stem
     platform_name = pbunreal.get_platform_name()
+    target_name = pbunreal.get_game_platform()
     exe_ext = pbunreal.get_exe_ext()
-    drm_exe_dir = stagedir / "Windows" / uproject_name / "Binaries" / platform_name
+    drm_exe_dir = stagedir / target_name / uproject_name / "Binaries" / platform_name
     search = f"{uproject_name}-{platform_name}*{exe_ext}"
     drm_exe_path = None
     if drm_exe_dir.is_dir():
