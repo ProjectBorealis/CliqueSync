@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 import threading
 from pathlib import Path
@@ -244,6 +245,7 @@ def ensure_symlinks():
         source = symlink.get("source", "")
         target = symlink.get("target", "")
         project = symlink.get("project", "")
+        exists = symlink.get("exists", "error")
 
         if project and project != project_name:
             continue
@@ -273,7 +275,7 @@ def ensure_symlinks():
         if not target:
             continue
 
-        target_path = Path(target).resolve()
+        target_path = Path(target).absolute()
 
         if not source:
             if target_path.exists() or pbtools.is_symlink(target_path):
@@ -294,11 +296,13 @@ def ensure_symlinks():
             )
             continue
 
+        temp_copy = None
+
         if pbtools.is_symlink(target_path):
             is_correct = False
             try:
-                link_target = os.readlink(str(target_path))
-                if Path(link_target).resolve() == source_path:
+                link_target = target_path.resolve(strict=False)
+                if link_target == source_path:
                     is_correct = True
             except OSError:
                 pass
@@ -308,15 +312,39 @@ def ensure_symlinks():
             else:
                 if not pbtools.remove_symlink(target_path):
                     pblog.error(f"Failed to remove symlink target {target}")
-        elif target_path.exists():
-            pblog.warning(
-                f"Target {target} already exists and is not a symlink. Skipping."
-            )
-            continue
+        elif target_path.exists() and exists != "ignore":
+            if exists == "error":
+                pblog.error(
+                    f"Target {target} already exists and is not a symlink. Skipping."
+                )
+                continue
+            elif exists == "delete":
+                try:
+                    shutil.rmtree(target_path)
+                except:
+                    pblog.error(f"Failed to delete target {target}. Skipping.")
+                    continue
+            elif exists == "copy":
+                try:
+                    temp_copy = target_path.parent / (target_path.name + "_temp")
+                    shutil.copytree(target_path, temp_copy)
+                except:
+                    pblog.error(f"Failed to copy {target_path} to {target}. Skipping.")
+                    continue
+
+        pblog.info(f"Creating symlink from {source} to {target}")
 
         target_path.parent.mkdir(parents=True, exist_ok=True)
         if not pbtools.create_symlink(source_path, target_path):
             pblog.error(f"Failed to create symlink for {target}")
+        if temp_copy and temp_copy.exists():
+            try:
+                shutil.copytree(temp_copy, source_path, dirs_exist_ok=True)
+                shutil.rmtree(temp_copy)
+            except:
+                pblog.warning(
+                    f"Failed to delete temporary copy {temp_copy}. Please delete it manually."
+                )
 
     return True
 
@@ -381,7 +409,7 @@ def build_local():
 
 
 @register_action()
-def setup_unreal_git():
+def setup_unreal_revision_control():
     pblog.info("Updating Unreal configuration settings")
     pbunreal.update_source_control()
     return True
