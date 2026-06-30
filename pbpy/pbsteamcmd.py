@@ -210,30 +210,37 @@ def publish_build(
 
             if drm_download_failed and drm_id:
                 steamclient = SteamWorker()
-                steamclient.login(
-                    pbconfig.get_user("steamcmd", "username"),
-                    pbconfig.get_user("steamcmd", "password"),
-                    True,
-                )
+                steamclient_failed = False
+                try:
+                    steamclient.login(
+                        pbconfig.get_user("steamcmd", "username"),
+                        pbconfig.get_user("steamcmd", "password"),
+                        True,
+                    )
+                except KeyboardInterrupt:
+                    steamclient_failed = True
 
-                while not steamclient.logged_on_once:
-                    # TODO: doesn't work, "this operation would block forever"
-                    # steamclient.steam.wait_event("logged_on")
-                    gevent.sleep(1)
+                if not steamclient_failed:
+                    while not steamclient.logged_on_once:
+                        # TODO: doesn't work, "this operation would block forever"
+                        # steamclient.steam.wait_event("logged_on")
+                        gevent.sleep(1)
 
-                resp = steamclient.steam.send_um_and_wait(
-                    "PartnerApps.Download#1",
-                    {
-                        "file_id": f"/{drm_app_id}/{drm_id}/{drm_exe_path.name}_{drm_id}",
-                        "app_id": int(drm_app_id),
-                    },
-                )
-                url = resp.body.download_url
-                if url:
-                    with urllib.request.urlopen(url) as response, open(
-                        str(drm_output), "wb"
-                    ) as out_file:
-                        shutil.copyfileobj(response, out_file)
+                    resp = steamclient.steam.send_um_and_wait(
+                        "PartnerApps.Download#1",
+                        {
+                            "file_id": f"/{drm_app_id}/{drm_id}/{drm_exe_path.name}_{drm_id}",
+                            "app_id": int(drm_app_id),
+                        },
+                    )
+                    url = resp.body.download_url
+                    if url:
+                        with urllib.request.urlopen(url) as response, open(
+                            str(drm_output), "wb"
+                        ) as out_file:
+                            shutil.copyfileobj(response, out_file)
+                else:
+                    print("")
                 steamclient.close()
 
             if not drm_output.exists() and drm_download_failed:
