@@ -418,10 +418,14 @@ class GitLFSPrereq(VersionedPrereq):
             quoted_paths = [f'"{p}"' for p in delete_paths]
             delete_cmdline = ["cmd.exe", "/c", "DEL", "/q", "/f"] + quoted_paths
             try:
-                pbuac.run_as_admin(delete_cmdline)
+                proc = pbuac.run_as_admin_with_combined_output(delete_cmdline)
+                if proc.returncode != 0:
+                    pblog.error("Automatic bundled Git LFS deletion failed.")
+                    if proc.stdout:
+                        pblog.error(proc.stdout)
             except OSError:
                 pblog.error(
-                    "User declined permission. Automatic bundled Git LFS deleted failed."
+                    "User declined permission. Automatic bundled Git LFS deletion failed."
                 )
 
         # Verify deletion; if any remain, we must stop and ask user to remove
@@ -488,13 +492,17 @@ class GitLFSPrereq(VersionedPrereq):
                                     f'"{git_lfs_path}"',
                                     f'"{main_lfs_path}"',
                                 ]
+                                output = ""
                                 if not pbuac.is_user_admin():
                                     pblog.info(
                                         "Requesting admin permission to move installed Git LFS which is being overridden..."
                                     )
                                     time.sleep(1)
                                     try:
-                                        pbuac.run_as_admin(move_cmdline)
+                                        proc = pbuac.run_as_admin_with_combined_output(
+                                            move_cmdline
+                                        )
+                                        output = proc.stdout
                                     except OSError:
                                         pblog.error(
                                             "User declined permission. Automatic Git LFS installation move failed."
@@ -504,7 +512,7 @@ class GitLFSPrereq(VersionedPrereq):
                                         )
                                         pbtools.error_state()
                                 else:
-                                    pbtools.run(move_cmdline)
+                                    proc = pbtools.run(move_cmdline)
                             break
                         index += 1
 

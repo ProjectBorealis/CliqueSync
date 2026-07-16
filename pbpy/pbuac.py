@@ -49,8 +49,10 @@ SOFTWARE.
 """
 
 import os
+import tempfile
 import traceback
-from subprocess import list2cmdline
+from pathlib import Path
+from subprocess import CompletedProcess, list2cmdline
 
 from pbpy import pblog
 
@@ -80,7 +82,128 @@ def is_user_admin():
         return True
 
 
-def run_as_admin(cmd_line, wait=True, show_cmd=False):
+def _build_env_cmds(env):
+    if not env:
+        return []
+    return [f'set "{key}={value}"' for key, value in env.items()]
+
+
+def _run_via_shell_execute(
+    cmd,
+    params,
+    wait=True,
+    show_cmd=False,
+    cwd=None,
+) -> CompletedProcess[str]:
+    import pywintypes
+    import win32con
+    import win32event
+    import win32process
+
+    # noinspection PyUnresolvedReferences
+    from win32com.shell import shellcon
+
+    # noinspection PyUnresolvedReferences
+    from win32com.shell.shell import ShellExecuteEx
+
+    showCmdArg = win32con.SW_SHOWNORMAL if show_cmd else win32con.SW_HIDE
+
+    try:
+        procInfo = ShellExecuteEx(
+            nShow=showCmdArg,
+            fMask=shellcon.SEE_MASK_NOCLOSEPROCESS,
+            lpVerb="runas",
+            lpFile=cmd,
+            lpParameters=params,
+            lpDirectory=str(cwd) if cwd else None,
+        )
+    except pywintypes.error as e:
+        raise OSError("Failed to execute command as admin.") from e
+
+    cmd_line = f"{cmd} {params}" if params else cmd
+
+    if wait:
+        procHandle = procInfo["hProcess"]
+        _ = win32event.WaitForSingleObject(procHandle, win32event.INFINITE)
+        ret = win32process.GetExitCodeProcess(procHandle)
+        return CompletedProcess(cmd_line, ret)
+    return CompletedProcess(cmd_line, 0)
+
+
+def _run_as_admin_with_capture(
+    cmd_line,
+    show_cmd=False,
+    cwd=None,
+    env=None,
+    combine_output=False,
+    encoding="utf-8",
+    errors="replace",
+) -> CompletedProcess[str]:
+    if cwd:
+        cwd = str(Path(cwd).resolve())
+
+    temp_files = []
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as out_tmp:
+            out_path = Path(out_tmp.name)
+        temp_files.append(out_path)
+
+        err_path = None
+        if not combine_output:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as err_tmp:
+                err_path = Path(err_tmp.name)
+            temp_files.append(err_path)
+
+        with tempfile.NamedTemporaryFile(
+            delete=False, suffix=".cmd", mode="w"
+        ) as script:
+            script_path = Path(script.name)
+            script.write("@echo off\n")
+            if cwd:
+                script.write(f'cd /d "{cwd}"\n')
+            for env_cmd in _build_env_cmds(env):
+                script.write(f"{env_cmd}\n")
+            cmd = list2cmdline(cmd_line)
+            if combine_output:
+                script.write(f'{cmd} 1>"{out_path}" 2>&1\n')
+            else:
+                script.write(f'{cmd} 1>"{out_path}" 2>"{err_path}"\n')
+            script.write("exit /b %ERRORLEVEL%\n")
+        temp_files.append(script_path)
+
+        proc = _run_via_shell_execute(
+            "cmd.exe",
+            "/d /c " + list2cmdline([str(script_path)]),
+            wait=True,
+            show_cmd=show_cmd,
+            cwd=cwd,
+        )
+
+        stdout = out_path.read_text(encoding=encoding, errors=errors)
+        if err_path:
+            stderr = err_path.read_text(encoding=encoding, errors=errors)
+        else:
+            stderr = ""
+        return CompletedProcess(cmd_line, proc.returncode, stdout=stdout, stderr=stderr)
+    finally:
+        for temp_file in temp_files:
+            try:
+                temp_file.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+
+def run_as_admin(
+    cmd_line,
+    wait=True,
+    show_cmd=False,
+    cwd=None,
+    env=None,
+    capture_output=False,
+    combine_output=False,
+    encoding="utf-8",
+    errors="replace",
+) -> CompletedProcess[str]:
     """
     Attempt to relaunch the current script as an admin using the same command line parameters.
 
@@ -95,52 +218,80 @@ def run_as_admin(cmd_line, wait=True, show_cmd=False):
 
     :param show_cmd: Set to True to show the command window of the process being launched.
 
-    :returns: the sub-process return code, unless wait is False, in which case it returns None.
+    :param cwd: Optional working directory for the elevated process.
+
+    :param env: Optional environment variables to set for the elevated process.
+
+    :param capture_output: If True, capture stdout/stderr
+
+    :param combine_output: If True and capture_output is enabled, combine stderr into stdout.
+
+    :returns: CompletedProcess
     """
 
     if os.name != "nt":
         raise RuntimeError("This function is only implemented on Windows.")
 
-    import pywintypes
-    import win32con
-    import win32event
-    import win32process
-
-    # noinspection PyUnresolvedReferences
-    from win32com.shell import shellcon
-
-    # noinspection PyUnresolvedReferences
-    from win32com.shell.shell import ShellExecuteEx
-
     if not cmd_line or not isinstance(cmd_line, (tuple, list)):
         raise ValueError("cmd_line is not a sequence.")
 
-    if show_cmd:
-        showCmdArg = win32con.SW_SHOWNORMAL
-    else:
-        showCmdArg = win32con.SW_HIDE
+    if capture_output and not wait:
+        raise ValueError("capture_output requires wait=True")
 
-    lpVerb = "runas"  # causes UAC elevation prompt.
+    if capture_output:
+        return _run_as_admin_with_capture(
+            cmd_line,
+            show_cmd=show_cmd,
+            cwd=cwd,
+            env=env,
+            combine_output=combine_output,
+            encoding=encoding,
+            errors=errors,
+        )
+
+    # ShellExecuteEx does not directly support passing env. Use a wrapper cmd script.
+    if env:
+        if not wait:
+            raise ValueError("env support requires wait=True")
+        return _run_as_admin_with_capture(
+            cmd_line,
+            show_cmd=show_cmd,
+            cwd=cwd,
+            env=env,
+            combine_output=True,
+            encoding=encoding,
+            errors=errors,
+        )
 
     cmd = cmd_line[0]
     params = list2cmdline(cmd_line[1:])
+    return _run_via_shell_execute(cmd, params, wait=wait, show_cmd=show_cmd, cwd=cwd)
 
-    try:
-        procInfo = ShellExecuteEx(
-            nShow=showCmdArg,
-            fMask=shellcon.SEE_MASK_NOCLOSEPROCESS,
-            lpVerb=lpVerb,
-            lpFile=cmd,
-            lpParameters=params,
-        )
-    except pywintypes.error as e:
-        raise OSError("Failed to execute command as admin.") from e
 
-    if wait:
-        procHandle = procInfo["hProcess"]
-        _ = win32event.WaitForSingleObject(procHandle, win32event.INFINITE)
-        rc = win32process.GetExitCodeProcess(procHandle)
-    else:
-        rc = None
+def run_as_admin_with_output(
+    cmd_line, show_cmd=False, cwd=None, env=None
+) -> CompletedProcess[str]:
+    """Run a command elevated and capture stdout/stderr separately."""
+    return run_as_admin(
+        cmd_line,
+        wait=True,
+        show_cmd=show_cmd,
+        cwd=cwd,
+        env=env,
+        capture_output=True,
+    )
 
-    return rc
+
+def run_as_admin_with_combined_output(
+    cmd_line, show_cmd=False, cwd=None, env=None
+) -> CompletedProcess[str]:
+    """Run a command elevated and capture combined stdout/stderr."""
+    return run_as_admin(
+        cmd_line,
+        wait=True,
+        show_cmd=show_cmd,
+        cwd=cwd,
+        env=env,
+        capture_output=True,
+        combine_output=True,
+    )
