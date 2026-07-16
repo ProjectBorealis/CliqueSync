@@ -156,10 +156,18 @@ def get_locked(key="ours", include_new=True):
     proc = pbtools.run_with_combined_output(
         [get_lfs_executable(), "locks", "--verify", "--json"]
     )
-    if proc.returncode:
-        return None
+    unexist_locks: dict[str, str] = dict()
+    if proc.returncode != 0:
+        return None, unexist_locks
     locked_objects = json.loads(proc.stdout)[key]
-    locked = set([lock.get("path") for lock in locked_objects])
+    locked: set[str] = set()
+    for lock in locked_objects:
+        lock_path = lock.get("path")
+        if Path(lock_path).exists():
+            locked.add(lock_path)
+        else:
+            unexist_locks[lock.get("id")] = lock_path
+    locked = {lock.get("path") for lock in locked_objects}
     # also check untracked and added files
     if key == "ours" and include_new:
         proc = pbtools.run_with_combined_output(
@@ -171,11 +179,11 @@ def get_locked(key="ours", include_new=True):
                 "-uall",
             ]
         )
-        if not proc.returncode:
+        if proc.returncode == 0:
             for line in proc.stdout.splitlines():
                 if line[0] == "?" or line[1] == "?" or line[0] == "A" or line[1] == "A":
                     locked.add(line[3:])
-    return locked
+    return locked, unexist_locks
 
 
 def read_only(file):
@@ -206,7 +214,7 @@ def fix_lfs_ro_attr(should_unlock_unmodified):
     if should_unlock_unmodified:
         unlock_unmodified()
     lockables = get_lockables()
-    locked = get_locked()
+    locked, _ = get_locked()
     if locked is None:
         pblog.error("Failed to get locked files from git-lfs, skipping lock cleanup.")
         return
@@ -226,6 +234,14 @@ def chunks(lst, n):
         yield lst[i : i + n]
 
 
+def unlock_nonexist_by_id(lock_id: str):
+    proc = pbtools.run(
+        [get_lfs_executable(), "unlock", "-i", str(lock_id)],
+        env={"GIT_LFS_SET_LOCKABLE_READONLY": "0"},
+    )
+    return proc.returncode
+
+
 def unlock_unmodified():
     modified = get_modified_files(paths=False)
     pending = pbtools.get_combined_output(
@@ -234,7 +250,7 @@ def unlock_unmodified():
     pending = pending.splitlines()
     pending = {line.rsplit(" => ", 1)[1] for line in pending if line}
     keep = modified | pending
-    locked = get_locked()
+    locked, unexist_locks = get_locked()
     if locked is None:
         pblog.error("Failed to get locked files from git-lfs, skipping lock cleanup.")
         return
@@ -244,25 +260,29 @@ def unlock_unmodified():
         # if a folder
         if Path(path).is_dir():
             prefix_filter.append(path)
-    unlock_it = list(unlock)
-    for file in unlock_it:
-        found = False
-        for prefix in prefix_filter:
-            if file.startswith(prefix):
-                unlock.remove(file)
-                found = True
-        if found:
-            continue
+    if prefix_filter:
+        unlock_iter = list(unlock)
+        for file in unlock_iter:
+            for prefix in prefix_filter:
+                if file.startswith(prefix):
+                    unlock.remove(file)
+                    break
     unlock = list(unlock)
     if not unlock:
         return True
+    ret = True
     for chunk in chunks(unlock, 50):
         args = [get_lfs_executable(), "unlock"]
         args.extend(chunk)
         proc = pbtools.run(args)
         if proc.returncode:
-            return False
-    return True
+            ret = False
+    cpus = os.cpu_count() or 1
+    for lock_id, path in unexist_locks.items():
+        if unlock_nonexist_by_id(lock_id) != 0:
+            pblog.warning(f"Failed to unlock {path}")
+            ret = False
+    return ret
 
 
 @lru_cache()

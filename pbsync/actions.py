@@ -59,7 +59,11 @@ def create_workflow(workflow_name: str, workflow_actions):
                 if not actions[action]():
                     break
             elif action in action_pairs:
-                if not action_pairs[action]():
+                if action in active_pairs:
+                    pop_action_name = f"pop_{action}"
+                    if not action_pairs[pop_action_name]():
+                        break
+                elif not action_pairs[action]():
                     break
             else:
                 raise ValueError(f"Action {action} not registered.")
@@ -68,7 +72,8 @@ def create_workflow(workflow_name: str, workflow_actions):
 
         for action in active_pairs.keys():
             pop_action_name = f"pop_{action}"
-            action_pairs[pop_action_name]()
+            if not action_pairs[pop_action_name]():
+                break
 
     workflows[workflow_name] = workflow
     return workflow
