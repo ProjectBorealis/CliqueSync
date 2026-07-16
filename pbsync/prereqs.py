@@ -480,10 +480,6 @@ class GitLFSPrereq(VersionedPrereq):
                     for git_lfs_path in git_lfs_paths:
                         if supported == pbgit.get_lfs_version(git_lfs_path):
                             if index != 0:
-                                pblog.info(
-                                    "Requesting admin permission to move installed Git LFS which is being overridden..."
-                                )
-                                time.sleep(1)
                                 move_cmdline = [
                                     "cmd.exe",
                                     "/c",
@@ -492,16 +488,23 @@ class GitLFSPrereq(VersionedPrereq):
                                     f'"{git_lfs_path}"',
                                     f'"{main_lfs_path}"',
                                 ]
-                                try:
-                                    pbuac.runAsAdmin(move_cmdline)
-                                except OSError:
-                                    pblog.error(
-                                        "User declined permission. Automatic Git LFS installation move failed."
+                                if not pbuac.isUserAdmin():
+                                    pblog.info(
+                                        "Requesting admin permission to move installed Git LFS which is being overridden..."
                                     )
-                                    pblog.error(
-                                        f"Git LFS is installed to a different location, overriding your installed version. Please install Git LFS to {main_lfs_path.parents[1]}."
-                                    )
-                                    pbtools.error_state()
+                                    time.sleep(1)
+                                    try:
+                                        pbuac.runAsAdmin(move_cmdline)
+                                    except OSError:
+                                        pblog.error(
+                                            "User declined permission. Automatic Git LFS installation move failed."
+                                        )
+                                        pblog.error(
+                                            f"Git LFS is installed to a different location, overriding your installed version. Please install Git LFS to {main_lfs_path.parents[1]}."
+                                        )
+                                        pbtools.error_state()
+                                else:
+                                    pbtools.run(move_cmdline)
                             break
                         index += 1
 
