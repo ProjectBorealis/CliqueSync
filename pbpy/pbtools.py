@@ -590,19 +590,19 @@ def maintain_repo():
                 "-Confirm:$false",
             ]
             ret = 0
-            if not pbuac.isUserAdmin():
+            if not pbuac.is_user_admin():
                 pblog.info(
                     "Requesting admin permission to delete the Git for Windows Updater..."
                 )
                 time.sleep(1)
                 try:
-                    ret = pbuac.runAsAdmin(cmdline)
+                    ret = pbuac.run_as_admin(cmdline)
                 except OSError:
                     pblog.error(
                         "User declined permission. Automatic Git for Windows Updater deletetion failed."
                     )
             else:
-                proc = run_with_combined_output(cmdline)
+                proc = run(cmdline)
                 ret = proc.returncode
             if ret != 0:
                 pblog.error(f"Failed to delete the Git for Windows Updater ({ret})")

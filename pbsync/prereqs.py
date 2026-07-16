@@ -382,7 +382,7 @@ class GitLFSPrereq(VersionedPrereq):
             return True
 
         bundled_git_lfs = False
-        is_admin = pbuac.isUserAdmin()
+        is_admin = pbuac.is_user_admin()
         delete_paths: list[str] = []
 
         for git_path in git_paths:
@@ -418,7 +418,7 @@ class GitLFSPrereq(VersionedPrereq):
             quoted_paths = [f'"{p}"' for p in delete_paths]
             delete_cmdline = ["cmd.exe", "/c", "DEL", "/q", "/f"] + quoted_paths
             try:
-                pbuac.runAsAdmin(delete_cmdline)
+                pbuac.run_as_admin(delete_cmdline)
             except OSError:
                 pblog.error(
                     "User declined permission. Automatic bundled Git LFS deleted failed."
@@ -488,13 +488,13 @@ class GitLFSPrereq(VersionedPrereq):
                                     f'"{git_lfs_path}"',
                                     f'"{main_lfs_path}"',
                                 ]
-                                if not pbuac.isUserAdmin():
+                                if not pbuac.is_user_admin():
                                     pblog.info(
                                         "Requesting admin permission to move installed Git LFS which is being overridden..."
                                     )
                                     time.sleep(1)
                                     try:
-                                        pbuac.runAsAdmin(move_cmdline)
+                                        pbuac.run_as_admin(move_cmdline)
                                     except OSError:
                                         pblog.error(
                                             "User declined permission. Automatic Git LFS installation move failed."

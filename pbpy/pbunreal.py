@@ -750,13 +750,13 @@ def run_unreal_setup():
     if not is_custom:
         return
     cmdline = [selector_path, "/fileassociations"]
-    if not pbuac.isUserAdmin():
+    if not pbuac.is_user_admin():
         pblog.info(
             "Requesting admin permission to register Unreal Engine file associations..."
         )
         time.sleep(1)
         try:
-            pbuac.runAsAdmin(cmdline)
+            pbuac.run_as_admin(cmdline)
         except OSError:
             pblog.error(
                 "User declined permission. Automatic Unreal Engine file association registration failed."
