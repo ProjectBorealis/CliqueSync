@@ -108,15 +108,19 @@ def _run_via_shell_execute(
 
     showCmdArg = win32con.SW_SHOWNORMAL if show_cmd else win32con.SW_HIDE
 
+    kwargs = {
+        "nShow": showCmdArg,
+        "fMask": shellcon.SEE_MASK_NOCLOSEPROCESS,
+        "lpVerb": "runas",
+        "lpFile": cmd,
+        "lpParameters": params,
+    }
+
+    if cwd:
+        kwargs["lpDirectory"] = str(cwd)
+
     try:
-        procInfo = ShellExecuteEx(
-            nShow=showCmdArg,
-            fMask=shellcon.SEE_MASK_NOCLOSEPROCESS,
-            lpVerb="runas",
-            lpFile=cmd,
-            lpParameters=params,
-            lpDirectory=str(cwd) if cwd else None,
-        )
+        procInfo = ShellExecuteEx(**kwargs)
     except pywintypes.error as e:
         raise OSError("Failed to execute command as admin.") from e
 
