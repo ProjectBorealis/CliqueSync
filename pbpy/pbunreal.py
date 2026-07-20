@@ -871,6 +871,9 @@ def register_engine(version, path):
         )
         return True
 
+    # no implementation for non-Windows systems, pretend like this succeeded
+    # TODO: Add linux implementation
+    return True
 
 longtail_path = "\\longtail\\longtail.exe"
 
@@ -1750,7 +1753,7 @@ def clean_binaries_folder(clean_pdbs):
                 pdb.unlink()
 
 
-def build_installed_build():
+def build_installed_build(bump_version):
     if not is_source_install():
         pbtools.error_state(
             "Engine builds are only supported for source installs.", fatal_error=False
@@ -1781,8 +1784,11 @@ def build_installed_build():
     major = build_version["MajorVersion"]
     minor = build_version["MinorVersion"]
     branch_version = f"{major}.{minor}-{depot}"
-    changelist = build_version["Changelist"] + 1
-    code_changelist = build_version["CompatibleChangelist"] + 1
+    changelist = build_version["Changelist"]
+    code_changelist = build_version["CompatibleChangelist"]
+    if bump_version:
+        changelist += 1
+        code_changelist += 1
 
     # clean up old archives
     local_builds_path = engine_path / "LocalBuilds"
@@ -1844,9 +1850,8 @@ def build_installed_build():
     )
 
     local_engine_path = local_builds_path / "Engine"
-    local_build_target = get_target_platform_name()
     editor_verification = get_bundle_verification_file("editor")
-    local_engine_target_path = local_engine_path / local_build_target
+    local_engine_target_path = local_engine_path / get_target_platform_name()
 
     unreal_editor_binary = (
         local_engine_target_path / f"{editor_verification}{get_exe_ext()}"
@@ -1870,8 +1875,27 @@ def build_installed_build():
     # UE4 has a branch prefix, UE5 does not
     version = build_version["BranchName"].replace("++UE4+", "")
 
+    _upload_installed_build(version, local_builds_path)
+
+    if not set_engine_version(version):
+        pbtools.error_state("Error while updating engine version in .uproject file")
+    pblog.info(f"Successfully changed engine version as {str(version)}")
+
+def upload_installed_build():
+    # query build version so we can name files appropriately
+    build_version_path = get_engine_base_path() / "Engine" / "Build" / "Build.version"
+    with open(build_version_path) as f:
+        build_version = json.load(f)
+    # UE4 has a branch prefix, UE5 does not
+    version = build_version["BranchName"].replace("++UE4+", "")
+    
+    _upload_installed_build(version, get_engine_base_path() / "LocalBuilds")
+
+def _upload_installed_build(version, local_builds_path):
+    local_engine_path = local_builds_path / "Engine"
     cs = get_cloud_storage()
     if cs:
+        proc = None
         if uses_longtail():
             bundle_name = pbconfig.get("uev_default_bundle")
             uri = get_versionator_gsuri()
@@ -1879,10 +1903,10 @@ def build_installed_build():
                 pbtools.error_state("No valid cloud storage URI configured.")
                 return
             args = [
-                str(Path().resolve() / get_longtail_path()),
+                get_longtail_path(),
                 "put",
                 "--source-path",
-                local_build_target,
+                get_target_platform_name(),
                 "--target-path",
                 f"{uri}lt/{bundle_name}/{version}.json",
                 "--compression-algorithm",
@@ -1938,13 +1962,9 @@ def build_installed_build():
         else:
             pbtools.error_state("Legacy uploads not allowed for this cloud provider.")
 
-        if proc.returncode:
+        if proc and proc.returncode:
             pbtools.error_state("Failed to upload installed engine.")
     else:
         pblog.warning(
             "No cloud storage configured, skipping upload of installed build."
         )
-
-    if not set_engine_version(version):
-        pbtools.error_state("Error while updating engine version in .uproject file")
-    pblog.info(f"Successfully changed engine version as {str(version)}")
