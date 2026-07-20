@@ -875,12 +875,17 @@ def register_engine(version, path):
     # TODO: Add linux implementation
     return True
 
-longtail_path = "\\longtail\\longtail.exe"
+longtail_path = "longtail/longtail"
 
 
 @lru_cache()
 def get_longtail_path():
-    return pbinfo.format_repo_folder(longtail_path)
+    longtail_path_ = pbinfo.format_repo_folder(pbtools.get_executable_filepath(longtail_path))
+    if not os.path.exists(longtail_path_):
+        pblog.error(
+            f"Longtail is used, but the executable does not exists at {longtail_path_}"
+        )
+    return longtail_path_
 
 
 @lru_cache()

@@ -518,10 +518,16 @@ def error_state(msg=None, fatal_error=False, hush=False, term=False):
         pbconfig.shutdown()
     sys.exit(1)
 
+def get_executable_filepath(filename):
+    filepath = Path(filename)
+    if os.name == "nt":
+        filepath = filepath.with_suffix(".exe")
+    else:
+        filepath = filepath.with_suffix("")
+    return str(filepath)
 
 def get_running_process(process_name):
-    if os.name == "nt":
-        process_name += ".exe"
+    process_name = get_executable_filepath(process_name)
     try:
         for p in psutil.process_iter(["name", "exe"]):
             if process_name == p.info["name"]:

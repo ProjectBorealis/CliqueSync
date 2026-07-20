@@ -50,9 +50,9 @@ Everyone is welcomed to fork the repository, or open pull requests and new issue
 
 You can refer to our [PBCore repo](https://github.com/ProjectBorealis/PBCore) for an example of usage.
 
-Essentially, we use a batch script to sync CliqueSync with the remote branch, and then launch CliqueSync (`UpdateProject.bat`). We have our configuration file in `CliqueSync.xml`.
+Essentially, we use a batch script to sync CliqueSync with the remote branch, and then launch CliqueSync (`UpdateProject.bat`(Windows) or `UpdateProject.sh`(Linux)). We have our configuration file in `CliqueSync.xml`.
 
-`CliqueSync.exe` and `ueversionator.exe` are distributed as part of the repo, at the root game project level.
+`CliqueSync.exe`(Windows) or `CliqueSync`(Linux) is distributed as part of the repo, at the root game project level.
 
 `.ueversionator` in the repo configures the engine download.
 

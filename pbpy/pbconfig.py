@@ -10,9 +10,9 @@ from pbpy import pblog, pbtools
 config: dict[str, str | list[str] | list[dict[str, str]] | bool] | None = None
 config_filepath = None
 
-user_config = None
-global_user_config = None
-project_user_config = None
+user_config : MergedConfigParser | None = None
+global_user_config : configparser.ConfigParser | None = None
+project_user_config : configparser.ConfigParser | None = None
 
 
 def validated_get(key):

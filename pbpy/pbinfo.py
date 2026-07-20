@@ -2,7 +2,7 @@ from urllib.parse import urlparse
 from functools import lru_cache
 
 from pbpy import pbconfig
-
+from pathlib import Path
 
 @lru_cache()
 def get_repo_folder():
@@ -28,4 +28,4 @@ def get_repo_folder():
 
 @lru_cache()
 def format_repo_folder(base):
-    return f"{get_repo_folder()}{base}"
+    return str(Path(get_repo_folder()) / Path(base))

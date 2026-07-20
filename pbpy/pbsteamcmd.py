@@ -12,7 +12,7 @@ from steam.client import SteamClient
 from pbpy import pbconfig, pbinfo, pblog, pbtools, pbunreal
 
 drm_upload_regex = re.compile(
-    r"https:\/\/partnerupload\.steampowered\.com\/upload\/(\d+)"
+    r"https://partnerupload\.steampowered\.com/upload/(\d+)"
 )
 
 
