@@ -587,15 +587,40 @@ def get_s3_endpoint_url():
 
 @lru_cache()
 def get_s3_credentials_env():
+    env = None
+    # get access key / secret if provided
+    access_key = os.environ.get("S3_ACCESS_KEY_ID")
+    secret_key = os.environ.get("S3_SECRET_ACCESS_KEY")
+    if access_key and secret_key:
+        env = {}
+        env["AWS_ACCESS_KEY_ID"] = access_key
+        env["AWS_SECRET_ACCESS_KEY"] = secret_key
+        region = os.environ.get("S3_REGION")
+        if region:
+            env["AWS_REGION"] = region
+    # if we already have everything we can set, return
+    if env and env.get("AWS_REGION"):
+        return env
     with open("Build/s3.json") as f:
         s3_creds = json.load(f)
-        env = {
-            "AWS_ACCESS_KEY_ID": s3_creds["key"],
-            "AWS_SECRET_ACCESS_KEY": s3_creds["secret"],
-        }
+        if not env:
+            env = {
+                "AWS_ACCESS_KEY_ID": s3_creds["key"],
+                "AWS_SECRET_ACCESS_KEY": s3_creds["secret"],
+            }
         if "region" in s3_creds:
             env["AWS_REGION"] = s3_creds["region"]
         return env
+
+
+@lru_cache()
+def get_gcs_credentials_env():
+    credentials = os.environ.get("GCS_CREDENTIALS")
+    if credentials:
+        env = {"GOOGLE_APPLICATION_CREDENTIALS": credentials}
+    else:
+        env = {"GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"}
+    return env
 
 
 @lru_cache()
@@ -899,21 +924,9 @@ def generate_cloud_storage_args_env(cs: str, bucket: str, args: list[str]):
             if endpoint is None:
                 return env, False
             args.extend(["--s3-endpoint-resolver-uri", endpoint])
-            # get access key / secret if provided
-            access_key = os.environ.get("S3_ACCESS_KEY_ID")
-            secret_key = os.environ.get("S3_SECRET_ACCESS_KEY")
-            if access_key and secret_key:
-                env = os.environ.copy()
-                env["AWS_ACCESS_KEY_ID"] = access_key
-                env["AWS_SECRET_ACCESS_KEY"] = secret_key
-        env = env or get_s3_credentials_env()
+        env = get_s3_credentials_env()
     elif cs == "gcs":
-        credentials = os.environ.get("GCS_CREDENTIALS")
-        if credentials:
-            env = os.environ.copy()
-            env["GOOGLE_APPLICATION_CREDENTIALS"] = credentials
-        else:
-            env = {"GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"}
+        env = get_gcs_credentials_env()
     return env, True
 
 
@@ -1889,19 +1902,12 @@ def build_installed_build():
                 "zstd_max",
                 "--enable-file-mapping",
             ]
-            env = None
-            if cs == "s3":
-                if is_custom_s3_uri(uri):
-                    endpoint = get_s3_endpoint_url()
-                    if endpoint is None:
-                        pbtools.error_state(
-                            "Custom S3 endpoint configured, but unable to parse from URI."
-                        )
-                        return
-                    args.extend(["--s3-endpoint-resolver-uri", endpoint])
-                env = get_s3_credentials_env()
-            elif cs == "gcs":
-                env = {"GOOGLE_APPLICATION_CREDENTIALS": "Build/credentials.json"}
+            env, success = generate_cloud_storage_args_env(cs, uri, args)
+            if not success:
+                pbtools.error_state(
+                    "Custom endpoint configured, but unable to parse from URI."
+                )
+                return
             proc = pbtools.run_stream(
                 args,
                 cwd=str(local_engine_path),
