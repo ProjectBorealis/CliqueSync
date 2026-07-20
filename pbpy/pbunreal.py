@@ -880,7 +880,7 @@ longtail_path = "longtail/longtail"
 
 @lru_cache()
 def get_longtail_path():
-    longtail_path_ = pbinfo.format_repo_folder(pbtools.get_executable_filepath(longtail_path))
+    longtail_path_ = pbtools.get_executable_filepath(pbinfo.format_repo_folder(longtail_path))
     if not os.path.exists(longtail_path_):
         pblog.error(
             f"Longtail is used, but the executable does not exists at {longtail_path_}"

@@ -73,9 +73,9 @@ def get_token_env(repo=None):
 def get_cli_executable(git_url=None):
     provider = get_git_provider(git_url)
     if provider == "github":
-        return pbinfo.format_repo_folder(pbtools.get_executable_filepath(gh_executable_path))
+        return pbtools.get_executable_filepath(pbinfo.format_repo_folder(gh_executable_path))
     elif provider == "gitlab":
-        return pbinfo.format_repo_folder(pbtools.get_executable_filepath(glab_executable_path))
+        return pbtools.get_executable_filepath(pbinfo.format_repo_folder(glab_executable_path))
     else:
         return None
 
@@ -414,7 +414,7 @@ def generate_release():
         )
         pblog.info(proc.stdout)
 
-        changelog_executable = pbinfo.format_repo_folder(pbtools.get_executable_filepath(chglog_executable_path))
+        changelog_executable = pbtools.get_executable_filepath(pbinfo.format_repo_folder(chglog_executable_path))
         if not os.path.exists(changelog_executable):
             pblog.error(
                 f"git-chglog executable not found at {changelog_executable}"

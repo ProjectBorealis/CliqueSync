@@ -524,10 +524,11 @@ def get_executable_filepath(filename):
         filepath = filepath.with_suffix(".exe")
     else:
         filepath = filepath.with_suffix("")
-    return str(filepath)
+    return str(os.path.abspath(filepath))
 
 def get_running_process(process_name):
-    process_name = get_executable_filepath(process_name)
+    if os.name == "nt" and not process_name.endswith(".exe"):
+        process_name += ".exe"
     try:
         for p in psutil.process_iter(["name", "exe"]):
             if process_name == p.info["name"]:
