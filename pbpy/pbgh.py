@@ -242,8 +242,8 @@ def pull_binaries(version_number: str, pass_checksum=False):
                     "get",
                     "--source-path",
                     f"{bucket_uri}/lt/{project_name}/{version_number}.json",
-                    "--target-path",
-                    str(pbinfo.get_root_path()),
+                    # "--target-path",
+                    # str(pbinfo.get_root_path()), This function never existed, so assuming target path wasn't set anyway
                     "--enable-file-mapping",
                 ]
 
