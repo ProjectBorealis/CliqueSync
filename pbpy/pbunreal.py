@@ -1423,10 +1423,10 @@ def get_uat_path():
 def get_ubt_path():
     base = get_engine_base_path()
     if base is not None:
-        platform = get_platform_name()
+        plat_name = get_platform_name()
         ubt = base / "Engine" / "Build" / "BatchFiles"
-        if platform == "Linux" or platform == "Mac":
-            ubt = ubt / platform / "Build.sh"
+        if plat_name == "Linux" or plat_name == "Mac":
+            ubt = ubt / plat_name / "Build.sh"
         else:
             ubt = ubt / "Build.bat"
         return ubt
@@ -1492,10 +1492,11 @@ def build_source(for_distribution=True):
             if engine_version:
                 download_engine(bundle_name, symbols_needed)
     ubt = get_ubt_path()
+    plat_name = get_platform_name()
     proc = pbtools.run_stream(
         [
             str(ubt),
-            platform,
+            plat_name,
             "Development",
             f"-project={str(get_uproject_path())}",
             "-TargetType=Editor",
@@ -1599,18 +1600,18 @@ def get_target_platform_name():
 
 @lru_cache()
 def get_editor_platform():
-    plat = get_target_platform_name()
+    plat_name = get_target_platform_name()
     if is_ue5():
-        return f"{plat}Editor"
-    return plat
+        return f"{plat_name}Editor"
+    return plat_name
 
 
 @lru_cache()
 def get_game_platform():
-    plat = get_target_platform_name()
+    plat_name = get_target_platform_name()
     if is_ue5():
-        return plat
-    return f"{plat}NoEditor"
+        return plat_name
+    return f"{plat_name}NoEditor"
 
 
 binaries_paths = ["Binaries", "Plugins/**/Binaries"]
@@ -1687,13 +1688,13 @@ def inspect_source(all=False):
     project_folder = get_uproject_path().parent
     inspect_file = str(project_folder / "Saved/InspectionResults.txt")
     pblog.info(f"Running Resharper {version}")
-    plat = get_platform_name()
+    plat_name = get_platform_name()
     proc = pbtools.run_stream(
         [
             str(resharper_exe),
             str(get_sln_path()),
             "--no-swea",
-            f"--properties:Platform={plat};Configuration=Development Editor",
+            f"--properties:Platform={plat_name};Configuration=Development Editor",
             f"--include={modified_files_list}",
             f"--project={get_base_name()}",
             "-f=Text",  # TODO: maybe switch to XML for more robust parsing?
@@ -1840,14 +1841,14 @@ def build_installed_build():
         pbtools.error_state("Failed to build installed engine.")
 
     ubt = get_ubt_path()
-    plat = get_platform_name()
+    plat_name = get_platform_name()
 
     # build the shader compiler worker
     proc = pbtools.run_stream(
         [
             str(ubt),
             "ShaderCompileWorker",
-            plat,
+            plat_name,
             "Development",
         ],
         env=env,
