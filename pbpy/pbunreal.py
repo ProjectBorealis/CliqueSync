@@ -16,6 +16,7 @@ from shutil import disk_usage, move, rmtree
 from urllib.parse import urlparse
 
 from pbpy import pbconfig, pbgit, pbinfo, pblog, pbtools, pbuac
+from pbpy.platform import get_app_config_dir
 
 # Those variable values are not likely to be changed in the future, it's safe to keep them hardcoded
 uev_prefix = "uev:"
@@ -863,37 +864,81 @@ def parse_reg_query(proc):
 
 
 def register_engine(version, path):
+    path = Path(path)
+    target_path = str(Path(path).as_posix())
     if os.name == "nt":
-        path = Path(path)
-        target_path = str(Path(path).as_posix())
         registry_list = pbtools.run_with_combined_output(
             ["powershell", "-Command", "Get-ItemProperty", "-Path", ps_reg_path]
         )
         # query if this path is used elsewhere, if so, we delete it
+        is_target_registered = False
+        had_keys_to_remove = False
         for key, value in parse_reg_query(registry_list):
             # if we already have this version with our target path, no need to reregister it
             is_target_version = key == version
             if is_target_version and target_path == value:
-                return False
+                is_target_registered = True
             # clear out if:
             # 1) if we do have a version match, but the path is different, OR
             # 2) if we have this path under a different version
             if is_target_version or path == Path(value):
                 pbtools.run(["reg", "delete", reg_path, "/v", key, "/f"])
-        pbtools.run(
-            [
-                "reg",
-                "add",
-                reg_path,
-                "/f",
-                "/v",
-                version,
-                "/t",
-                "REG_SZ",
-                "/d",
-                target_path,
-            ]
-        )
+                had_keys_to_remove = True
+        if is_target_registered and not had_keys_to_remove:
+            return False
+        if not is_target_registered:
+            pbtools.run(
+                [
+                    "reg",
+                    "add",
+                    reg_path,
+                    "/f",
+                    "/v",
+                    version,
+                    "/t",
+                    "REG_SZ",
+                    "/d",
+                    target_path,
+                ]
+            )
+        return True
+    else:
+        ini_path = get_app_config_dir() / "Epic" / "UnrealEngine" / "Install.ini"
+
+        config = configparser.ConfigParser()
+        config.optionxform = str
+
+        if ini_path.exists():
+            try:
+                config.read(ini_path, encoding="utf-8")
+            except Exception as e:
+                pblog.error(f"Failed to parse {ini_path}: {e}")
+                return False
+
+        if not config.has_section("Installations"):
+            config.add_section("Installations")
+
+        installations = config["Installations"]
+
+        is_target_registered = False
+        had_keys_to_remove = False
+        for key, value in list(installations.items()):
+            is_target_version = key == version
+            if is_target_version and target_path == value:
+                is_target_registered = True
+            elif is_target_version or path == Path(value):
+                config.remove_option("Installations", key)
+                had_keys_to_remove = True
+
+        if is_target_registered and not had_keys_to_remove:
+            return False
+
+        config.set("Installations", version, target_path)
+
+        ini_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(ini_path, "w", encoding="utf-8") as f:
+            config.write(f, space_around_delimiters=True)
+
         return True
 
 
