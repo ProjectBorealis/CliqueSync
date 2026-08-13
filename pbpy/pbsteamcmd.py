@@ -11,9 +11,7 @@ from steam.client import SteamClient
 
 from pbpy import pbconfig, pbinfo, pblog, pbtools, pbunreal
 
-drm_upload_regex = re.compile(
-    r"https:\/\/partnerupload\.steampowered\.com\/upload\/(\d+)"
-)
+drm_upload_regex = re.compile(r"https://partnerupload\.steampowered\.com/upload/(\d+)")
 
 
 class SteamWorker:
@@ -22,7 +20,7 @@ class SteamWorker:
 
         self.steam = worker = SteamClient()
         worker.set_credential_location(
-            str((Path(pbconfig.config_filepath).parent / "Saved").resolve())
+            str((pbinfo.get_root_folder() / "Saved").resolve())
         )
 
         @worker.on("error")
@@ -99,8 +97,9 @@ def publish_build(
         pbconfig.get_user("steamcmd", "password"),
     ]
 
-    stagedir = Path(publish_stagedir)
-    uproject_name = Path(pbunreal.get_uproject_name()).stem
+    project_folder = pbunreal.get_uproject_folder()
+    stagedir = project_folder / publish_stagedir
+    uproject_name = pbunreal.get_project_name()
     plat_name = pbunreal.get_platform_name()
     target_name = pbunreal.get_game_platform()
     exe_ext = pbunreal.get_exe_ext()
@@ -147,27 +146,23 @@ def publish_build(
 
     def push_app():
         nonlocal result
-        script_path = (Path() / app_script.format(branch_type)).resolve()
+        script_path = (project_folder / app_script.format(branch_type)).resolve()
         build_cmd = base_steamcmd_command.copy()
         build_cmd.extend(["+run_app_build", script_path, "+quit"])
         proc = pbtools.run_stream(build_cmd, logfunc=steam_log)
         result = proc.returncode
 
-        if drm_exe_path and drm_exe_path.is_file():
+        if drm_exe_path and nondrm_bytes:
             # remove drm wrapped file and write the original file, so that a subsequent build will re-build a non-wrapped executable
             pbtools.remove_file(drm_exe_path)
             with open(drm_exe_path, "wb") as orig_file:
                 orig_file.write(nondrm_bytes)
 
     if drm_app_id and drm_exe_path:
-        if not drm_exe_path.is_absolute():
-            drm_exe_path = (
-                Path(pbconfig.config_filepath).parent / drm_exe_path
-            ).resolve()
         if not drm_exe_path.is_file():
-            pblog.error("steamcmd/drm/targetbinary does not exist.")
+            pblog.error(f"{drm_exe_path.as_posix()} does not exist.")
             return False
-        thirdparty_path = Path(pbinfo.format_repo_folder("/thirdpartylegalnotices.txt"))
+        thirdparty_path = Path(pbinfo.format_repo_folder("thirdpartylegalnotices.txt"))
         thirdparty_dst = stagedir
         if thirdparty_path.exists():
             for dst in thirdparty_dst.glob("*/"):
@@ -177,8 +172,7 @@ def publish_build(
                 appid_file.write(drm_app_id)
         drm_command = base_steamcmd_command.copy()
         drm_output = (
-            Path(pbconfig.config_filepath).parent
-            / Path("wrappedBin" + drm_exe_path.suffix)
+            project_folder / Path("wrappedBin" + drm_exe_path.suffix)
         ).resolve()  # save file to wrappedBin.exe temporarily
         drm_command.extend(
             [

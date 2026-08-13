@@ -32,7 +32,7 @@ uev_user_config = "uev-user"
 
 engine_installation_folder_regex = [r"[0-9].[0-9]{2}.*-", r"-[0-9]{8}"]
 
-p4merge_path = "/p4merge/p4merge.exe"
+p4merge_path = "p4merge/p4merge"
 
 ps_reg_path = r'"HKCU:/Software/Epic Games/Unreal Engine/Builds"'
 reg_path = r"HKCU\Software\Epic Games\Unreal Engine\Builds"
@@ -283,7 +283,7 @@ def get_engine_install_root(prompt=True) -> str | None:
     )
     root = source_dir or pbconfig.get_user(uev_user_config, "download_dir")
     if root is None and prompt:
-        curdir = Path().resolve()
+        curdir = pbinfo.get_root_folder().resolve()
 
         if pbconfig.get("is_ci"):
             # make sure we actually have a managed install
@@ -383,9 +383,25 @@ def is_source_install():
     return (Path(root) / ".git").exists()
 
 
+longtail_path = "longtail/longtail"
+
+
+@lru_cache()
+def get_longtail_path():
+    return pbinfo.format_repo_folder(pbtools.get_executable_filepath(longtail_path))
+
+
 @lru_cache()
 def uses_longtail():
-    return pbconfig.get("uses_longtail")
+    longtail_enabled = pbconfig.get("uses_longtail")
+    if longtail_enabled:
+        longtail_exe = get_longtail_path()
+        if os.path.exists(longtail_exe):
+            return True
+        pblog.error(
+            f"Longtail is enabled, but the executable does not exist at {longtail_exe}"
+        )
+    return False
 
 
 def check_ue_file_association():
@@ -824,8 +840,13 @@ def get_uproject_path():
     return Path(get_uproject_name()).resolve()
 
 
+@lru_cache()
+def get_uproject_folder():
+    return get_uproject_path().parent
+
+
 def generate_project_files():
-    source_dir = get_uproject_path().parent / "Source"
+    source_dir = get_uproject_folder() / "Source"
     if not source_dir.is_dir():
         return
     selector_path, is_custom = get_unreal_version_selector_path()
@@ -940,14 +961,6 @@ def register_engine(version, path):
             config.write(f, space_around_delimiters=True)
 
         return True
-
-
-longtail_path = "\\longtail\\longtail.exe"
-
-
-@lru_cache()
-def get_longtail_path():
-    return pbinfo.format_repo_folder(longtail_path)
 
 
 @lru_cache()
@@ -1350,7 +1363,9 @@ def update_git_source_control():
     with ue_config(
         f"Saved/Config/{editor_plat}/EditorPerProjectUserSettings.ini"
     ) as editor_config:
-        p4merge = str(Path(pbinfo.format_repo_folder(p4merge_path)).resolve())
+        p4merge = pbinfo.format_repo_folder(
+            pbtools.get_executable_filepath(p4merge_path)
+        )
         editor_config["/Script/UnrealEd.EditorLoadingSavingSettings"][
             "TextDiffToolPath"
         ] = f'(FilePath="{p4merge}")'
@@ -1401,7 +1416,7 @@ def is_ue_closed():
                 return True
     # finally, do an expensive open files check to ensure the project is open
     files = p.open_files()
-    project_path = Path().resolve()
+    project_path = get_uproject_folder()
     found_project = False
     for file in files:
         path = Path(file.path)
@@ -1425,6 +1440,10 @@ def ensure_ue_closed():
 def get_base_name():
     project_path = get_uproject_path()
     return project_path.stem
+
+
+def get_project_name():
+    return get_base_name()
 
 
 @lru_cache()
@@ -1665,7 +1684,7 @@ binaries_paths = ["Binaries", "Plugins/**/Binaries"]
 def package_binaries():
     binaries_zip = Path("Binaries.zip")
     binaries_zip.unlink(missing_ok=True)
-    base_path = Path(".")
+    base_path = get_uproject_folder()
 
     clean_binaries_folder(pbconfig.get("package_pdbs") != "True")
 
@@ -1793,7 +1812,7 @@ clean_binaries_globs = [
 
 
 def clean_binaries_folder(clean_pdbs):
-    base_path = Path(".")
+    base_path = get_uproject_folder()
     for binaries_path in binaries_paths:
         for binary_glob in clean_binaries_globs:
             for file in base_path.glob(
@@ -1931,6 +1950,7 @@ def build_installed_build():
 
     cs = get_cloud_storage()
     if cs:
+        proc = None
         if uses_longtail():
             bundle_name = pbconfig.get("uev_default_bundle")
             uri = get_versionator_gsuri()
@@ -1938,7 +1958,7 @@ def build_installed_build():
                 pbtools.error_state("No valid cloud storage URI configured.")
                 return
             args = [
-                str(Path().resolve() / get_longtail_path()),
+                get_longtail_path(),
                 "put",
                 "--source-path",
                 local_build_target,
@@ -1990,7 +2010,7 @@ def build_installed_build():
         else:
             pbtools.error_state("Legacy uploads not allowed for this cloud provider.")
 
-        if proc.returncode:
+        if proc and proc.returncode:
             pbtools.error_state("Failed to upload installed engine.")
     else:
         pblog.warning(

@@ -10,7 +10,6 @@ from pathlib import Path
 from pbpy import (
     pbbutler,
     pbconfig,
-    pbdispatch,
     pbgh,
     pbgit,
     pblog,
@@ -179,12 +178,6 @@ def autoversion_handler(autoversion_val):
 
 
 PUBLISHERS = {
-    "dispatch": lambda publish_val, pubexe: pbdispatch.publish_build(
-        publish_val,
-        pubexe,
-        pbconfig.get("publish_stagedir"),
-        pbconfig.get("dispatch_config"),
-    ),
     "steamcmd": lambda publish_val, pubexe: pbsteamcmd.publish_build(
         publish_val,
         pubexe,
@@ -382,7 +375,6 @@ def main(argv):
             "repo_folder": ("project/repo_folder", None, "default", True),
             "publish_publishers": ("publish/publisher", None, [], False),
             "publish_stagedir": ("publish/stagedir", None, "Saved/StagedBuilds", True),
-            "dispatch_config": ("dispatch/config", None, "", True),
             "butler_project": ("butler/project", None, "", True),
             "butler_manifest": ("butler/manifest", None, "", True),
             "steamcmd_script": ("steamcmd/script", None, "", True),

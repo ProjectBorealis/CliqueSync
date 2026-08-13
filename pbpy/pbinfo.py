@@ -1,16 +1,22 @@
-from urllib.parse import urlparse
 from functools import lru_cache
+from pathlib import Path
+from urllib.parse import urlparse
 
 from pbpy import pbconfig
 
 
 @lru_cache()
-def get_repo_folder():
-    repo_folder = pbconfig.get("repo_folder")
+def get_root_folder() -> Path:
+    return Path(pbconfig.config_filepath).parent
+
+
+@lru_cache()
+def get_repo_folder() -> str:
+    repo_folder: str = pbconfig.get("repo_folder")
     if repo_folder and repo_folder != "default":
         return repo_folder
 
-    git_url = pbconfig.get("git_url")
+    git_url: str = pbconfig.get("git_url")
     if not git_url:
         return "Tools"
 
@@ -27,5 +33,5 @@ def get_repo_folder():
 
 
 @lru_cache()
-def format_repo_folder(base):
-    return f"{get_repo_folder()}{base}"
+def format_repo_folder(base: str) -> str:
+    return (get_root_folder().resolve() / get_repo_folder() / base).as_posix()

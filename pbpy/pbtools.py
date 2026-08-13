@@ -519,8 +519,15 @@ def error_state(msg=None, fatal_error=False, hush=False, term=False):
     sys.exit(1)
 
 
-def get_running_process(process_name):
+def get_executable_filepath(filename: str) -> str:
+    filepath = Path(filename)
     if os.name == "nt":
+        filepath = filepath.with_suffix(".exe")
+    return filepath.as_posix()
+
+
+def get_running_process(process_name):
+    if os.name == "nt" and not process_name.endswith(".exe"):
         process_name += ".exe"
     try:
         for p in psutil.process_iter(["name", "exe"]):

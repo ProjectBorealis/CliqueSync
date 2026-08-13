@@ -1,7 +1,6 @@
 import platform
-
-from pathlib import Path
 import shutil
+from pathlib import Path
 
 from pbpy import pblog, pbtools, pbunreal
 
@@ -27,7 +26,8 @@ def publish_build(
     else:
         plat = plat.lower()
 
-    manifest_path = Path(publish_stagedir) / ".itch.toml"
+    publish_stagedir = pbunreal.get_uproject_folder() / Path(publish_stagedir)
+    manifest_path = publish_stagedir / ".itch.toml"
 
     shutil.copyfile(butler_manifest.format(plat), manifest_path)
 
@@ -38,7 +38,7 @@ def publish_build(
         [
             butler_exec_path,
             "push",
-            publish_stagedir,
+            str(publish_stagedir),
             f"{butler_project}:{channel}",
             "--userversion",
             pbunreal.get_project_version(),

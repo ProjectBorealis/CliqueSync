@@ -35,9 +35,6 @@
         <project>user/project</project>
         <manifest>Butler/.itch.{0}.toml</manifest>
     </butler>
-    <dispatch>
-        <config>Dispatch/DispatchConfig.json</config>
-    </dispatch>
     <resharper>
         <version>2022.2.3</version>
     </resharper>

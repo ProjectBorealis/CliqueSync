@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Sequence, override
 
-from pbpy import pbconfig, pbgh, pbgit, pblog, pbtools, pbuac
+from pbpy import pbconfig, pbgh, pbgit, pbinfo, pblog, pbtools, pbuac
 from pbpy.platform import PlatformSpecificLazyValue, PlatformSpecificValue
 
 
@@ -485,8 +485,8 @@ class GitLFSPrereq(VersionedPrereq):
         ok = linstall() is True
         if ok:
             # Configure LFS hooks for the user
-            current_drive = Path().resolve()
-            drive_root = current_drive.drive or current_drive.root
+            drive_root = pbinfo.get_root_folder().resolve()
+            drive_root = drive_root.drive or drive_root.root
             pbtools.run([pbgit.get_lfs_executable(), "install"], cwd=drive_root)
 
             # Check if Git LFS was installed to a different path (Windows only)

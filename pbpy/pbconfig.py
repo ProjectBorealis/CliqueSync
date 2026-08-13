@@ -10,9 +10,9 @@ from pbpy import pblog, pbtools
 config: dict[str, str | list[str] | list[dict[str, str]] | bool] | None = None
 config_filepath = None
 
-user_config = None
-global_user_config = None
-project_user_config = None
+user_config: MergedConfigParser | None = None
+global_user_config: configparser.ConfigParser | None = None
+project_user_config: configparser.ConfigParser | None = None
 
 
 def validated_get(key):
@@ -78,8 +78,7 @@ def get_project_user_config_filename():
 
         uproject_name = pbunreal.get_uproject_name()
         if uproject_name:
-            uproject_path = pbunreal.get_uproject_path()
-            project_dir = uproject_path.parent
+            project_dir = pbunreal.get_uproject_folder()
 
             global_file = get_global_user_config_filename()
             basename = Path(global_file).name

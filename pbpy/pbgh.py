@@ -7,10 +7,10 @@ from zipfile import ZipFile
 
 from pbpy import pbconfig, pbgit, pbinfo, pblog, pbtools, pbunreal
 
-gh_executable_path = "\\git\\gh.exe"
-chglog_executable_path = "\\git\\git-chglog.exe"
-glab_executable_path = "\\git\\glab.exe"
-chglog_config_path = "\\chglog.yml"
+gh_executable_path = "git/gh"
+chglog_executable_path = "git/git-chglog"
+glab_executable_path = "git/glab"
+chglog_config_path = "chglog.yml"
 release_file = "RELEASE_MSG"
 binary_package_name = "Binaries.zip"
 
@@ -73,9 +73,13 @@ def get_token_env(repo=None):
 def get_cli_executable(git_url=None):
     provider = get_git_provider(git_url)
     if provider == "github":
-        return pbinfo.format_repo_folder(gh_executable_path)
+        return pbinfo.format_repo_folder(
+            pbtools.get_executable_filepath(gh_executable_path)
+        )
     elif provider == "gitlab":
-        return pbinfo.format_repo_folder(glab_executable_path)
+        return pbinfo.format_repo_folder(
+            pbtools.get_executable_filepath(glab_executable_path)
+        )
     else:
         return None
 
@@ -234,16 +238,14 @@ def pull_binaries(version_number: str, pass_checksum=False):
 
             if uses_longtail_cfg:
                 # Longtail fast incremental download
-                longtail_path = pbunreal.get_longtail_path()
-
                 project_name = pbconfig.get("project_name")
                 args = [
-                    pbinfo.format_repo_folder(longtail_path),
+                    pbunreal.get_longtail_path(),
                     "get",
                     "--source-path",
                     f"{bucket_uri}/lt/{project_name}/{version_number}.json",
                     "--target-path",
-                    str(pbinfo.get_root_path()),
+                    str(pbunreal.get_uproject_folder() / "Binaries"),
                     "--enable-file-mapping",
                 ]
 
@@ -414,17 +416,18 @@ def generate_release():
         )
         pblog.info(proc.stdout)
 
-        if not os.path.exists(pbinfo.format_repo_folder(chglog_executable_path)):
-            pblog.error(
-                f"git-chglog executable not found at {pbinfo.format_repo_folder(chglog_executable_path)}"
-            )
+        chglog_exe = pbinfo.format_repo_folder(
+            pbtools.get_executable_filepath(chglog_executable_path)
+        )
+        if not os.path.exists(chglog_exe):
+            pblog.error(f"git-chglog executable not found at {chglog_exe}")
             # Create a fallback release file
             with open(release_file, "w") as f:
                 f.write(f"Release {version}\n")
         else:
             proc = pbtools.run_with_combined_output(
                 [
-                    pbinfo.format_repo_folder(chglog_executable_path),
+                    chglog_exe,
                     "-c",
                     pbinfo.format_repo_folder(chglog_config_path),
                     "-o",
@@ -490,6 +493,7 @@ def generate_release():
 
         else:
             # zip fallback
+            # TODO: deprecate this or fix calls to non-existing functions get_aws_cli_path, get_gsutil_path
             env, success = pbunreal.generate_cloud_storage_args_env(cs, bucket_uri, [])
             if not success:
                 pbtools.error_state(
@@ -552,7 +556,7 @@ def generate_release():
             # If not using cloud storage, attach the zip to the release
             cmds.insert(4, binary_package_name)
 
-        if cli_exec_path == pbinfo.format_repo_folder(gh_executable_path):
+        if get_git_provider() == "github":
             if has_git:
                 target_branch = pbconfig.get("expected_branch_names")[0]
                 gh_cmds = ["--target", target_branch, "-t", version]

@@ -20,12 +20,6 @@
             "type": "promptString"
         },
         {
-            "id": "dispatchPath",
-            "description": "Please enter path for dispatch executable",
-            "default": "",
-            "type": "promptString"
-        },
-        {
             "id": "printSelection",
             "description": "Please choose what do you want to print",
             "default": "current-engine",
