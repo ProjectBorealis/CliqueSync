@@ -6,7 +6,7 @@ import time
 import webbrowser
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Optional, Sequence, override
 
 from pbpy import pbconfig, pbgh, pbgit, pblog, pbtools, pbuac
 from pbpy.platform import PlatformSpecificLazyValue, PlatformSpecificValue
@@ -258,17 +258,12 @@ class VersionedPrereq(GenericPrereq):
     def get_installed_version(self) -> Optional[str]:
         return None
 
-    def is_met(self, hush=False) -> bool:
-        supported_version = self.get_supported_version()
-        installed_version = self.get_installed_version()
-
-        ret = False
-
+    def compare_versions(
+        self, installed: Optional[str], supported: Optional[str]
+    ) -> bool:
         if self.match_mode == "exact":
-            if installed_version and (
-                not supported_version or installed_version == supported_version
-            ):
-                ret = True
+            if installed and (not supported or installed == supported):
+                return True
         elif self.match_mode == "minimum":
             # TODO: parse semver if needed
             raise NotImplementedError("Minimum version checking not implemented yet.")
@@ -279,6 +274,13 @@ class VersionedPrereq(GenericPrereq):
             )
         else:
             raise ValueError(f"Unknown match mode: {self.match_mode}")
+        return False
+
+    def is_met(self, hush=False) -> bool:
+        supported_version = self.get_supported_version()
+        installed_version = self.get_installed_version()
+
+        ret = self.compare_versions(installed_version, supported_version)
 
         if not hush:
             if ret:
@@ -314,6 +316,18 @@ class GitPrereq(VersionedPrereq):
 
     def get_installed_version(self) -> Optional[str]:
         return pbgit.get_git_version()
+
+    @override
+    def compare_versions(
+        self, installed: Optional[str], supported: Optional[str]
+    ) -> bool:
+        if installed and ".vfs" in installed:
+            installed = installed.split(".vfs")[0]
+
+        if supported and ".vfs" in supported:
+            supported = supported.split(".vfs")[0]
+
+        return super().compare_versions(installed, supported)
 
     def install(self) -> bool:
         supported = self.get_supported_version()
